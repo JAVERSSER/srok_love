@@ -8,6 +8,13 @@ export const spacing = {
   xxxl: 48,
 } as const;
 
+export const layout = {
+  // Caps the app's width on wide viewports (tablet/web) so it stays a
+  // phone-width column instead of stretching edge to edge.
+  maxWidth: 480,
+  screenPadding: 24,
+} as const;
+
 export const radius = {
   sm: 8,
   md: 12,

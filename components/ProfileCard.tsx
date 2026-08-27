@@ -1,5 +1,5 @@
-import React from "react";
-import { View, Text, StyleSheet, Dimensions, Pressable } from "react-native";
+import React, { useState } from "react";
+import { View, Text, StyleSheet, useWindowDimensions, Pressable } from "react-native";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
@@ -13,10 +13,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { UserProfile } from "@/models";
 import { colors } from "@/constants/colors";
-import { radius, spacing, font, shadow } from "@/constants/spacing";
-
-const { width } = Dimensions.get("window");
-const SWIPE_THRESHOLD = width * 0.28;
+import { radius, spacing, font, shadow, layout } from "@/constants/spacing";
 
 export type SwipeDir = "left" | "right" | "up";
 
@@ -28,6 +25,14 @@ interface Props {
 }
 
 export function ProfileCard({ user, onSwipe, onTap, isTop }: Props) {
+  const { width: windowWidth } = useWindowDimensions();
+  // The card fills its parent, which is capped at `layout.maxWidth` on
+  // tablet/web (see app/_layout.tsx) — measure the card itself via onLayout
+  // rather than using the raw window width, so swipe-distance thresholds
+  // match what's actually on screen instead of a wide desktop viewport.
+  const [width, setWidth] = useState(() => Math.min(windowWidth, layout.maxWidth));
+  const SWIPE_THRESHOLD = width * 0.28;
+
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
 
@@ -87,7 +92,10 @@ export function ProfileCard({ user, onSwipe, onTap, isTop }: Props) {
 
   return (
     <GestureDetector gesture={pan}>
-      <Animated.View style={[styles.card, cardStyle]}>
+      <Animated.View
+        style={[styles.card, cardStyle]}
+        onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
+      >
         <Pressable style={StyleSheet.absoluteFill} onPress={onTap}>
           <Image
             source={{ uri: user.photos[0] }}

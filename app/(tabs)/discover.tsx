@@ -150,8 +150,9 @@ const styles = StyleSheet.create({
   title: { fontSize: font.h2, fontWeight: "800", color: colors.text },
   deck: {
     flex: 1,
-    marginHorizontal: spacing.lg,
+    marginHorizontal: spacing.xl,
     marginTop: spacing.sm,
+    marginBottom: spacing.sm,
   },
   behind: {
     ...StyleSheet.absoluteFillObject,
