@@ -1,11 +1,13 @@
 import React from "react";
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAppStore } from "@/store/appStore";
 import { colors } from "@/constants/colors";
 
 export default function TabsLayout() {
   const matchCount = useAppStore((s) => s.matches.length);
+  const insets = useSafeAreaInsets();
 
   return (
     <Tabs
@@ -15,8 +17,12 @@ export default function TabsLayout() {
         tabBarInactiveTintColor: colors.textTertiary,
         tabBarStyle: {
           borderTopColor: colors.border,
-          height: 60,
-          paddingBottom: 8,
+          // Original 60/8/6 sizing is unchanged when there's no bottom inset
+          // (web, older Android). On notched phones, the home indicator's
+          // inset is added on top so the icon+label content isn't squeezed
+          // into (or clipped by) the gesture-bar area.
+          height: 60 + insets.bottom,
+          paddingBottom: 8 + insets.bottom,
           paddingTop: 6,
         },
         tabBarLabelStyle: { fontSize: 11, fontWeight: "600" },
