@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "SrokLove",
+    "slug": "sroklove",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "sroklove",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "backgroundColor": "#E7275E"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.sroklove.app"
+    },
+    "android": {
+      "package": "com.sroklove.app"
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router"
+    ],
+    "experiments": {
+      "typedRoutes": false
+    }
+  }
+}

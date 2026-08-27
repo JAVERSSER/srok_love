@@ -1,0 +1,187 @@
+import React from "react";
+import { View, Text, StyleSheet, Dimensions, Pressable } from "react-native";
+import { Image } from "expo-image";
+import { Ionicons } from "@expo/vector-icons";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  runOnJS,
+  interpolate,
+  Extrapolation,
+} from "react-native-reanimated";
+import { UserProfile } from "@/models";
+import { colors } from "@/constants/colors";
+import { radius, spacing, font, shadow } from "@/constants/spacing";
+
+const { width } = Dimensions.get("window");
+const SWIPE_THRESHOLD = width * 0.28;
+
+export type SwipeDir = "left" | "right" | "up";
+
+interface Props {
+  user: UserProfile;
+  onSwipe: (dir: SwipeDir) => void;
+  onTap: () => void;
+  isTop: boolean;
+}
+
+export function ProfileCard({ user, onSwipe, onTap, isTop }: Props) {
+  const translateX = useSharedValue(0);
+  const translateY = useSharedValue(0);
+
+  const trigger = (dir: SwipeDir) => onSwipe(dir);
+
+  const pan = Gesture.Pan()
+    .enabled(isTop)
+    .onUpdate((e) => {
+      translateX.value = e.translationX;
+      translateY.value = e.translationY;
+    })
+    .onEnd((e) => {
+      const goRight = e.translationX > SWIPE_THRESHOLD;
+      const goLeft = e.translationX < -SWIPE_THRESHOLD;
+      const goUp = e.translationY < -SWIPE_THRESHOLD && Math.abs(e.translationX) < SWIPE_THRESHOLD;
+
+      if (goRight) {
+        translateX.value = withSpring(width * 1.5);
+        runOnJS(trigger)("right");
+      } else if (goLeft) {
+        translateX.value = withSpring(-width * 1.5);
+        runOnJS(trigger)("left");
+      } else if (goUp) {
+        translateY.value = withSpring(-width * 1.5);
+        runOnJS(trigger)("up");
+      } else {
+        translateX.value = withSpring(0);
+        translateY.value = withSpring(0);
+      }
+    });
+
+  const cardStyle = useAnimatedStyle(() => {
+    const rotate = interpolate(
+      translateX.value,
+      [-width / 2, 0, width / 2],
+      [-8, 0, 8],
+      Extrapolation.CLAMP
+    );
+    return {
+      transform: [
+        { translateX: translateX.value },
+        { translateY: translateY.value },
+        { rotateZ: `${rotate}deg` },
+      ],
+    };
+  });
+
+  const likeStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(translateX.value, [0, SWIPE_THRESHOLD], [0, 1], Extrapolation.CLAMP),
+  }));
+  const passStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(translateX.value, [-SWIPE_THRESHOLD, 0], [1, 0], Extrapolation.CLAMP),
+  }));
+  const superStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(translateY.value, [-SWIPE_THRESHOLD, 0], [1, 0], Extrapolation.CLAMP),
+  }));
+
+  return (
+    <GestureDetector gesture={pan}>
+      <Animated.View style={[styles.card, cardStyle]}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onTap}>
+          <Image
+            source={{ uri: user.photos[0] }}
+            style={styles.photo}
+            contentFit="cover"
+            transition={200}
+          />
+          <View style={styles.gradient} />
+
+          <Animated.View style={[styles.badge, styles.likeBadge, likeStyle]}>
+            <Text style={styles.likeText}>LIKE ❤️</Text>
+          </Animated.View>
+          <Animated.View style={[styles.badge, styles.passBadge, passStyle]}>
+            <Text style={styles.passText}>PASS ✕</Text>
+          </Animated.View>
+          <Animated.View style={[styles.superBadge, superStyle]}>
+            <Text style={styles.superText}>SUPER LIKE ⭐</Text>
+          </Animated.View>
+
+          <View style={styles.info}>
+            <View style={styles.nameRow}>
+              <Text style={styles.name}>
+                {user.name}, {user.age}
+              </Text>
+              {user.verified && (
+                <Ionicons name="checkmark-circle" size={20} color={colors.superLike} />
+              )}
+            </View>
+            <View style={styles.locRow}>
+              <Ionicons name="location-sharp" size={14} color={colors.white} />
+              <Text style={styles.location}>{user.location}</Text>
+            </View>
+            <Text style={styles.bio} numberOfLines={2}>
+              &ldquo;{user.bio}&rdquo;
+            </Text>
+          </View>
+        </Pressable>
+      </Animated.View>
+    </GestureDetector>
+  );
+}
+
+const styles = StyleSheet.create({
+  card: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: radius.xl,
+    backgroundColor: colors.surfaceAlt,
+    overflow: "hidden",
+    ...shadow.card,
+  },
+  photo: { ...StyleSheet.absoluteFillObject },
+  gradient: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: "45%",
+    backgroundColor: "rgba(0,0,0,0.28)",
+  },
+  info: { position: "absolute", left: spacing.xl, right: spacing.xl, bottom: spacing.xxl },
+  nameRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  name: { fontSize: font.h1, fontWeight: "800", color: colors.white },
+  locRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 },
+  location: { fontSize: font.body, color: colors.white, fontWeight: "600" },
+  bio: { fontSize: font.body, color: colors.white, marginTop: spacing.sm, lineHeight: 20 },
+  badge: {
+    position: "absolute",
+    top: spacing.xxl,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radius.md,
+    borderWidth: 3,
+  },
+  likeBadge: {
+    left: spacing.xl,
+    borderColor: colors.like,
+    transform: [{ rotate: "-14deg" }],
+  },
+  passBadge: {
+    right: spacing.xl,
+    borderColor: colors.pass,
+    transform: [{ rotate: "14deg" }],
+  },
+  likeText: { color: colors.like, fontWeight: "900", fontSize: font.title },
+  passText: { color: colors.pass, fontWeight: "900", fontSize: font.title },
+  superBadge: {
+    position: "absolute",
+    alignSelf: "center",
+    bottom: "38%",
+    borderColor: colors.superLike,
+    borderWidth: 3,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radius.md,
+  },
+  superText: { color: colors.superLike, fontWeight: "900", fontSize: font.title },
+});
