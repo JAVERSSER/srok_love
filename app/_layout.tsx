@@ -4,7 +4,7 @@ import { Stack } from "expo-router";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
-import { View, ActivityIndicator, StyleSheet } from "react-native";
+import { View, ActivityIndicator, StyleSheet, Platform } from "react-native";
 import { useAppStore } from "@/store/appStore";
 import { colors } from "@/constants/colors";
 import { layout } from "@/constants/spacing";
@@ -16,6 +16,23 @@ export default function RootLayout() {
   useEffect(() => {
     hydrate();
   }, [hydrate]);
+
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    // Mobile Safari's collapsible toolbar isn't accounted for by the
+    // `height: 100%` Expo's web template sets on html/body/#root, so
+    // fixed-position content anchored to the bottom (our tab bar) can end up
+    // rendered underneath Safari's own UI. `100dvh` tracks the actual
+    // visible viewport instead. Injected at runtime since expo-router's
+    // `+html.tsx` override only applies to static web output, not this
+    // project's SPA output mode.
+    const style = document.createElement("style");
+    style.textContent = `html, body, #root { height: 100dvh; }`;
+    document.head.appendChild(style);
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, []);
 
   if (!hydrated) {
     return (
