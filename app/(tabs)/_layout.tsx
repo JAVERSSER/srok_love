@@ -17,11 +17,14 @@ export default function TabsLayout() {
         tabBarInactiveTintColor: colors.textTertiary,
         tabBarStyle: {
           borderTopColor: colors.border,
-          // Original 60/8/6 sizing is unchanged when there's no bottom inset
-          // (web, older Android). On notched phones, the home indicator's
-          // inset is added on top so the icon+label content isn't squeezed
-          // into (or clipped by) the gesture-bar area.
-          height: 60 + insets.bottom,
+          // 60px only leaves ~46px for icon+label content, which is just
+          // barely enough on native but not quite on react-native-web (its
+          // icon/label rendering needs a couple more px), so the flexbox
+          // column forcibly shrinks the label text and its `overflow:
+          // hidden` clips it down to a sliver. 68px gives real breathing
+          // room on every platform. On notched phones, the home indicator's
+          // inset is added on top so content isn't squeezed into it either.
+          height: 68 + insets.bottom,
           paddingBottom: 8 + insets.bottom,
           paddingTop: 6,
         },
