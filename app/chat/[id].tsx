@@ -130,12 +130,14 @@ export default function Chat() {
     [allMessages, id]
   );
 
+  // The list is inverted (newest at offset 0), so "bottom of the chat" is the
+  // top of the scroll. If the user had scrolled up, bring them back down.
   useEffect(() => {
-    // Wait one frame for the new bubble to lay out, then scroll to it.
-    requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
+    listRef.current?.scrollToOffset({ offset: 0, animated: true });
   }, [convo.length]);
 
-  const rows = useMemo(() => buildRows(convo), [convo]);
+  // Newest first, to match the inverted list.
+  const rows = useMemo(() => buildRows(convo).reverse(), [convo]);
 
   const renderItem = useCallback(({ item }: { item: Row }) => {
     if (item.kind === "day") {
@@ -209,9 +211,12 @@ export default function Chat() {
         ref={listRef}
         data={rows}
         keyExtractor={(r) => r.key}
+        // Inverted, like native chat apps: the list is anchored to the bottom,
+        // so when the keyboard shrinks it the latest messages stay put instead
+        // of the list re-scrolling on every frame of the keyboard animation.
+        inverted={rows.length > 0}
         contentContainerStyle={styles.messages}
-        // The list shrinks when the keyboard opens; keep the latest message in view.
-        onLayout={() => listRef.current?.scrollToEnd({ animated: false })}
+        keyboardShouldPersistTaps="handled"
         ListEmptyComponent={
           <View style={styles.empty}>
             <ProfilePhoto uri={user.photos[0]} size={72} />
