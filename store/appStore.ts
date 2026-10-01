@@ -45,6 +45,9 @@ interface AppState {
   loggedIn: boolean;
   account: Account | null;
   myPhotos: ProfilePhoto[];
+  // Profile photo picked while creating a profile, before there's an account
+  // to upload it to. Memory only: picker URIs don't survive a restart on web.
+  pendingPhoto: api.LocalImage | null;
 
   currentUser: UserProfile;
   users: UserProfile[];
@@ -69,8 +72,12 @@ interface AppState {
   // Only used while AUTH_DISABLED: enters the app without an account.
   skipAuth: () => void;
 
-  addPhoto: (image: api.LocalImage) => Promise<void>;
-  removePhoto: (id: number) => Promise<void>;
+  setPendingPhoto: (photo: api.LocalImage | null) => void;
+  // Uploads pendingPhoto once logged in. Throws api.ApiError on failure.
+  uploadPendingPhoto: () => Promise<void>;
+  // There's one profile photo; these throw api.ApiError on failure.
+  setProfilePhoto: (image: api.LocalImage) => Promise<void>;
+  removeProfilePhoto: () => Promise<void>;
 
   updateCurrentUser: (patch: Partial<UserProfile>) => void;
 
@@ -115,6 +122,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   loggedIn: false,
   account: null,
   myPhotos: [],
+  pendingPhoto: null,
 
   currentUser: defaultCurrentUser,
   // No profile-discovery API on the backend yet, so there are no other users.
@@ -225,24 +233,29 @@ export const useAppStore = create<AppState>((set, get) => ({
     persist(get());
   },
 
-  addPhoto: async (image) => {
+  setPendingPhoto: (photo) => set({ pendingPhoto: photo }),
+
+  uploadPendingPhoto: async () => {
+    const pending = get().pendingPhoto;
+    if (!pending) return;
+    try {
+      await get().setProfilePhoto(pending);
+    } finally {
+      set({ pendingPhoto: null });
+    }
+  },
+
+  setProfilePhoto: async (image) => {
     const uploaded = await api.uploadPhoto(image);
-    const myPhotos = [...get().myPhotos, { id: uploaded.id, url: uploaded.url }];
-    await api.assignPhotos(myPhotos.map((p) => p.id));
-    set((s) => ({ myPhotos, currentUser: { ...s.currentUser, photos: myPhotos.map((p) => p.url) } }));
+    const myPhotos = [{ id: uploaded.id, url: uploaded.url }];
+    await api.assignPhotos([uploaded.id]);
+    set((s) => ({ myPhotos, currentUser: { ...s.currentUser, photos: [uploaded.url] } }));
     persist(get());
   },
 
-  removePhoto: async (id) => {
-    const myPhotos = get().myPhotos.filter((p) => p.id !== id);
-    await api.assignPhotos(myPhotos.map((p) => p.id));
-    set((s) => ({
-      myPhotos,
-      currentUser: {
-        ...s.currentUser,
-        photos: myPhotos.map((p) => p.url),
-      },
-    }));
+  removeProfilePhoto: async () => {
+    await api.assignPhotos([]);
+    set((s) => ({ myPhotos: [], currentUser: { ...s.currentUser, photos: [] } }));
     persist(get());
   },
 

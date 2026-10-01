@@ -9,13 +9,13 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
 import { useAppStore } from "@/store/appStore";
 import { AUTH_DISABLED } from "@/constants/api";
 import { colors } from "@/constants/colors";
 import { spacing, font, radius } from "@/constants/spacing";
 import { PrimaryButton } from "@/components/ui";
 import { InterestTag } from "@/components/InterestTag";
+import { AvatarPicker, pickAvatarImage } from "@/components/AvatarPicker";
 import {
   provinces,
   genderOptions,
@@ -29,6 +29,8 @@ export default function CreateProfile() {
   const router = useRouter();
   const updateCurrentUser = useAppStore((s) => s.updateCurrentUser);
   const skipAuth = useAppStore((s) => s.skipAuth);
+  const photo = useAppStore((s) => s.pendingPhoto);
+  const setPhoto = useAppStore((s) => s.setPendingPhoto);
 
   const [name, setName] = useState("");
   const [age, setAge] = useState("25");
@@ -45,6 +47,11 @@ export default function CreateProfile() {
     setInterests((prev) =>
       prev.includes(i) ? prev.filter((x) => x !== i) : [...prev, i]
     );
+
+  const pickPhoto = async () => {
+    const image = await pickAvatarImage();
+    if (image) setPhoto(image);
+  };
 
   const valid = name.trim().length > 1 && Number(age) >= 18;
 
@@ -76,12 +83,7 @@ export default function CreateProfile() {
         <Text style={styles.header}>Create your profile</Text>
         <Text style={styles.sub}>Tell us a little about yourself.</Text>
 
-        <View style={styles.photoRow}>
-          <View style={[styles.photo, styles.photoEmpty]}>
-            <Ionicons name="person" size={36} color={colors.textTertiary} />
-          </View>
-          <Text style={styles.photoHint}>Add your photos from Edit Profile after signing up.</Text>
-        </View>
+        <AvatarPicker uri={photo?.uri} onPick={pickPhoto} onRemove={() => setPhoto(null)} />
 
         <Label text="Full name" />
         <TextInput
@@ -212,10 +214,6 @@ const styles = StyleSheet.create({
   scroll: { padding: spacing.xl },
   header: { fontSize: font.h2, fontWeight: "800", color: colors.text },
   sub: { fontSize: font.body, color: colors.textSecondary, marginTop: 4, marginBottom: spacing.lg },
-  photoRow: { alignItems: "center", marginBottom: spacing.lg },
-  photo: { width: 110, height: 110, borderRadius: 55, backgroundColor: colors.surfaceAlt },
-  photoEmpty: { alignItems: "center", justifyContent: "center" },
-  photoHint: { fontSize: font.small, color: colors.textTertiary, marginTop: spacing.sm },
   label: {
     fontSize: font.small,
     fontWeight: "700",

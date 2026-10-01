@@ -6,16 +6,13 @@ import {
   ScrollView,
   TextInput,
   Pressable,
-  ActivityIndicator,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Image } from "expo-image";
-import * as ImagePicker from "expo-image-picker";
-import { Ionicons } from "@expo/vector-icons";
 import { useAppStore } from "@/store/appStore";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { InterestTag } from "@/components/InterestTag";
+import { AvatarPicker, pickAvatarImage } from "@/components/AvatarPicker";
 import { PrimaryButton } from "@/components/ui";
 import { colors } from "@/constants/colors";
 import { spacing, font, radius } from "@/constants/spacing";
@@ -54,7 +51,6 @@ export default function EditProfile() {
     <SafeAreaView style={styles.container} edges={["top"]}>
       <ScreenHeader title="Edit Profile" />
       <ScrollView contentContainerStyle={styles.scroll}>
-        <Label text="Photos" />
         <PhotoManager />
 
         <Label text="Name" />
@@ -94,12 +90,10 @@ export default function EditProfile() {
   );
 }
 
-const MAX_PHOTOS = 6;
-
 function PhotoManager() {
   const photos = useAppStore((s) => s.myPhotos);
-  const addPhoto = useAppStore((s) => s.addPhoto);
-  const removePhoto = useAppStore((s) => s.removePhoto);
+  const setProfilePhoto = useAppStore((s) => s.setProfilePhoto);
+  const removeProfilePhoto = useAppStore((s) => s.removeProfilePhoto);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -116,53 +110,18 @@ function PhotoManager() {
   };
 
   const pick = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images"],
-      allowsEditing: true,
-      aspect: [3, 4],
-      quality: 0.8,
-    });
-    if (result.canceled || !result.assets[0]) return;
-    const asset = result.assets[0];
-    run(() => addPhoto({ uri: asset.uri, mimeType: asset.mimeType, fileName: asset.fileName }));
+    const image = await pickAvatarImage();
+    if (image) run(() => setProfilePhoto(image));
   };
 
   return (
-    <View>
-      <View style={styles.photos}>
-        {photos.map((p) => (
-          <View key={p.id} style={styles.photoTile}>
-            <Image source={{ uri: p.url }} style={styles.photoImg} contentFit="cover" />
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Remove photo"
-              onPress={() => run(() => removePhoto(p.id))}
-              disabled={busy}
-              hitSlop={6}
-              style={styles.photoRemove}
-            >
-              <Ionicons name="close" size={14} color={colors.white} />
-            </Pressable>
-          </View>
-        ))}
-        {photos.length < MAX_PHOTOS ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Add photo"
-            onPress={pick}
-            disabled={busy}
-            style={[styles.photoTile, styles.photoAdd]}
-          >
-            {busy ? (
-              <ActivityIndicator color={colors.primary} />
-            ) : (
-              <Ionicons name="add" size={28} color={colors.primary} />
-            )}
-          </Pressable>
-        ) : null}
-      </View>
-      {error ? <Text style={styles.photoError}>{error}</Text> : null}
-    </View>
+    <AvatarPicker
+      uri={photos[0]?.url}
+      onPick={pick}
+      onRemove={() => run(removeProfilePhoto)}
+      busy={busy}
+      error={error}
+    />
   );
 }
 
@@ -228,32 +187,4 @@ const styles = StyleSheet.create({
   chipText: { color: colors.textSecondary, fontWeight: "600", fontSize: font.small },
   chipTextActive: { color: colors.primaryDark },
   interests: { flexDirection: "row", flexWrap: "wrap" },
-  photos: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
-  photoTile: {
-    width: 96,
-    height: 128,
-    borderRadius: radius.md,
-    overflow: "hidden",
-    backgroundColor: colors.surfaceAlt,
-  },
-  photoImg: { width: "100%", height: "100%" },
-  photoRemove: {
-    position: "absolute",
-    top: 6,
-    right: 6,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: "rgba(0,0,0,0.55)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  photoAdd: {
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderStyle: "dashed",
-    borderColor: colors.primary,
-  },
-  photoError: { color: colors.danger, fontSize: font.small, marginTop: spacing.sm },
 });

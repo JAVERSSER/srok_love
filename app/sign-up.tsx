@@ -5,6 +5,7 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -17,6 +18,7 @@ import { validatePassword, validateUsername } from "@/services/auth";
 export default function SignUp() {
   const router = useRouter();
   const register = useAppStore((s) => s.register);
+  const uploadPendingPhoto = useAppStore((s) => s.uploadPendingPhoto);
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -44,6 +46,13 @@ export default function SignUp() {
     setServerError(null);
     try {
       await register(username, password);
+      try {
+        await uploadPendingPhoto();
+      } catch {
+        const msg = "Your account was created, but your photo didn't upload. Add it again from Edit Profile.";
+        if (Platform.OS === "web") window.alert(msg);
+        else Alert.alert("Photo not uploaded", msg);
+      }
       router.replace("/(tabs)/discover");
     } catch (e) {
       setServerError(e instanceof Error ? e.message : "Couldn't create your account. Please try again.");
