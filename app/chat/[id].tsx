@@ -8,19 +8,103 @@ import {
   FlatList,
   KeyboardAvoidingView,
   Platform,
+  NativeSyntheticEvent,
+  TextInputKeyPressEventData,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useAppStore } from "@/store/appStore";
 import { ProfilePhoto } from "@/components/ProfilePhoto";
-import { MessageBubble } from "@/components/MessageBubble";
-import type { Message } from "@/models";
+import { MessageBubble, BubblePosition } from "@/components/MessageBubble";
+import type { Message, UserProfile } from "@/models";
 import { colors } from "@/constants/colors";
-import { spacing, font } from "@/constants/spacing";
+import { spacing, font, radius } from "@/constants/spacing";
+
+// Messages from the same sender closer together than this are grouped.
+const GROUP_GAP_MS = 5 * 60 * 1000;
+// Messages younger than this animate in (i.e. ones that just arrived).
+const FRESH_MS = 2000;
+
+// Desktop browsers: Enter sends, Shift+Enter adds a line. On phones Enter
+// stays a newline, like other chat apps.
+const enterSends =
+  Platform.OS === "web" &&
+  typeof window !== "undefined" &&
+  !!window.matchMedia?.("(pointer: fine)").matches;
 
 function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function dayKey(iso: string) {
+  return new Date(iso).toDateString();
+}
+
+function formatDay(iso: string) {
+  const d = new Date(iso);
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+  if (d.toDateString() === today.toDateString()) return "Today";
+  if (d.toDateString() === yesterday.toDateString()) return "Yesterday";
+  const daysAgo = (today.getTime() - d.getTime()) / 86_400_000;
+  if (daysAgo < 7) return d.toLocaleDateString([], { weekday: "long" });
+  return d.toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" });
+}
+
+type Row =
+  | { kind: "day"; key: string; label: string }
+  | {
+      kind: "msg";
+      key: string;
+      message: Message;
+      position: BubblePosition;
+      showTime: boolean;
+      sent: boolean;
+    };
+
+// Turns a sorted conversation into list rows: a divider at each new day, and
+// each message tagged with its place in its sender group.
+function buildRows(convo: Message[]): Row[] {
+  const rows: Row[] = [];
+  const joins = (a: Message | undefined, b: Message | undefined) =>
+    !!a &&
+    !!b &&
+    a.senderId === b.senderId &&
+    dayKey(a.createdAt) === dayKey(b.createdAt) &&
+    Date.parse(b.createdAt) - Date.parse(a.createdAt) < GROUP_GAP_MS;
+
+  convo.forEach((m, i) => {
+    const prev = convo[i - 1];
+    const next = convo[i + 1];
+    if (!prev || dayKey(prev.createdAt) !== dayKey(m.createdAt)) {
+      rows.push({ kind: "day", key: `day_${dayKey(m.createdAt)}`, label: formatDay(m.createdAt) });
+    }
+    const above = joins(prev, m);
+    const below = joins(m, next);
+    const position: BubblePosition =
+      above && below ? "middle" : above ? "last" : below ? "first" : "single";
+    rows.push({
+      kind: "msg",
+      key: m.id,
+      message: m,
+      position,
+      showTime: !below,
+      sent: m.senderId === "me" && i === convo.length - 1,
+    });
+  });
+  return rows;
+}
+
+// Conversation starters drawn from the match's profile.
+function buildIcebreakers(user: UserProfile): string[] {
+  const ideas = [`Hi ${user.name}! 👋 How's your day going?`];
+  if (user.interests[0]) {
+    ideas.push(`I see you're into ${user.interests[0]} — how did you get started?`);
+  }
+  ideas.push(`What's your favourite place to hang out in ${user.city ?? user.location}?`);
+  return ideas;
 }
 
 export default function Chat() {
@@ -51,16 +135,24 @@ export default function Chat() {
     requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
   }, [convo.length]);
 
-  const renderItem = useCallback(
-    ({ item }: { item: Message }) => (
+  const rows = useMemo(() => buildRows(convo), [convo]);
+
+  const renderItem = useCallback(({ item }: { item: Row }) => {
+    if (item.kind === "day") {
+      return <Text style={styles.day}>{item.label}</Text>;
+    }
+    const { message } = item;
+    return (
       <MessageBubble
-        text={item.text}
-        time={formatTime(item.createdAt)}
-        mine={item.senderId === "me"}
+        text={message.text}
+        mine={message.senderId === "me"}
+        position={item.position}
+        time={item.showTime ? formatTime(message.createdAt) : undefined}
+        sent={item.sent}
+        animateIn={Date.now() - Date.parse(message.createdAt) < FRESH_MS}
       />
-    ),
-    []
-  );
+    );
+  }, []);
 
   if (!user) {
     return (
@@ -81,6 +173,22 @@ export default function Chat() {
     inputRef.current?.focus();
   };
 
+  const onKeyPress = (e: NativeSyntheticEvent<TextInputKeyPressEventData>) => {
+    if (!enterSends) return;
+    const { key, shiftKey } = e.nativeEvent as TextInputKeyPressEventData & { shiftKey?: boolean };
+    if (key === "Enter" && !shiftKey) {
+      e.preventDefault();
+      send();
+    }
+  };
+
+  const pickIcebreaker = (idea: string) => {
+    setText(idea);
+    inputRef.current?.focus();
+  };
+
+  const canSend = text.trim().length > 0;
+
   return (
     <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
       <View style={styles.header}>
@@ -99,16 +207,27 @@ export default function Chat() {
 
       <FlatList
         ref={listRef}
-        data={convo}
-        keyExtractor={(m) => m.id}
+        data={rows}
+        keyExtractor={(r) => r.key}
         contentContainerStyle={styles.messages}
         // The list shrinks when the keyboard opens; keep the latest message in view.
         onLayout={() => listRef.current?.scrollToEnd({ animated: false })}
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Text style={styles.emptyText}>
-              You matched with {user.name}. Say hello! 👋
-            </Text>
+            <ProfilePhoto uri={user.photos[0]} size={72} />
+            <Text style={styles.emptyTitle}>You matched with {user.name}!</Text>
+            <Text style={styles.emptyText}>Not sure what to say? Tap one to start.</Text>
+            <View style={styles.ideas}>
+              {buildIcebreakers(user).map((idea) => (
+                <Pressable
+                  key={idea}
+                  onPress={() => pickIcebreaker(idea)}
+                  style={({ pressed }) => [styles.idea, pressed && styles.ideaPressed]}
+                >
+                  <Text style={styles.ideaText}>{idea}</Text>
+                </Pressable>
+              ))}
+            </View>
           </View>
         }
         renderItem={renderItem}
@@ -128,11 +247,16 @@ export default function Chat() {
               placeholder="Type a message..."
               placeholderTextColor={colors.textTertiary}
               multiline
+              onKeyPress={onKeyPress}
             />
             <Pressable
-              style={[styles.sendBtn, !text.trim() && styles.sendDisabled]}
+              style={({ pressed }) => [
+                styles.sendBtn,
+                !canSend && styles.sendDisabled,
+                pressed && styles.sendPressed,
+              ]}
               onPress={send}
-              disabled={!text.trim()}
+              disabled={!canSend}
             >
               <Ionicons name="send" size={16} color={colors.white} />
             </Pressable>
@@ -157,8 +281,26 @@ const styles = StyleSheet.create({
   name: { fontSize: font.title, fontWeight: "700", color: colors.text },
   online: { fontSize: font.small, color: colors.success },
   messages: { padding: spacing.lg, flexGrow: 1 },
+  day: {
+    alignSelf: "center",
+    fontSize: font.tiny,
+    fontWeight: "600",
+    color: colors.textTertiary,
+    marginVertical: spacing.md,
+  },
   empty: { flex: 1, alignItems: "center", justifyContent: "center", paddingTop: spacing.xxxl },
-  emptyText: { color: colors.textSecondary, textAlign: "center" },
+  emptyTitle: { fontSize: font.title, fontWeight: "700", color: colors.text, marginTop: spacing.md },
+  emptyText: { color: colors.textSecondary, textAlign: "center", marginTop: spacing.xs },
+  ideas: { alignSelf: "stretch", gap: spacing.sm, marginTop: spacing.lg },
+  idea: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.lg,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+  },
+  ideaPressed: { backgroundColor: colors.primarySoft, borderColor: colors.primarySoft },
+  ideaText: { fontSize: font.body, color: colors.text },
   inputBar: {
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
@@ -194,5 +336,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   sendDisabled: { backgroundColor: colors.textTertiary },
+  sendPressed: { transform: [{ scale: 0.88 }] },
   unavailable: { textAlign: "center", marginTop: spacing.xxl, color: colors.textSecondary },
 });
