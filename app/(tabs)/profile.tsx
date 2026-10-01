@@ -9,8 +9,10 @@ import { InterestTag } from "@/components/InterestTag";
 import { Row, SectionTitle } from "@/components/ui";
 import { colors } from "@/constants/colors";
 import { spacing, font, radius, shadow } from "@/constants/spacing";
+import { useTabBarSpace } from "@/components/GlassTabBar";
 
 export default function Profile() {
+  const tabBarSpace = useTabBarSpace();
   const router = useRouter();
   const user = useAppStore((s) => s.currentUser);
   const logout = useAppStore((s) => s.logout);
@@ -22,7 +24,7 @@ export default function Profile() {
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
-      <ScrollView contentContainerStyle={{ paddingBottom: spacing.xxl }}>
+      <ScrollView contentContainerStyle={{ paddingBottom: tabBarSpace + spacing.lg }}>
         <View style={styles.hero}>
           <Image source={{ uri: user.photos[0] }} style={styles.avatar} contentFit="cover" />
           <View style={styles.nameRow}>

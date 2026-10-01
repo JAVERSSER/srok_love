@@ -7,8 +7,10 @@ import { ProfilePhoto } from "@/components/ProfilePhoto";
 import { EmptyState } from "@/components/EmptyState";
 import { colors } from "@/constants/colors";
 import { spacing, font } from "@/constants/spacing";
+import { useTabBarSpace } from "@/components/GlassTabBar";
 
 export default function Matches() {
+  const tabBarSpace = useTabBarSpace();
   const router = useRouter();
   const matches = useAppStore((s) => s.matches);
   const getUserById = useAppStore((s) => s.getUserById);
@@ -37,7 +39,7 @@ export default function Matches() {
       <FlatList
         data={rows}
         keyExtractor={(u) => u.id}
-        contentContainerStyle={{ padding: spacing.lg }}
+        contentContainerStyle={{ padding: spacing.lg, paddingBottom: tabBarSpace }}
         renderItem={({ item: u }) => {
           const convo = getConversation(u.id);
           const last = convo[convo.length - 1];

@@ -8,8 +8,10 @@ import { useAppStore } from "@/store/appStore";
 import { EmptyState } from "@/components/EmptyState";
 import { colors } from "@/constants/colors";
 import { spacing, font, radius, shadow } from "@/constants/spacing";
+import { useTabBarSpace } from "@/components/GlassTabBar";
 
 export default function Likes() {
+  const tabBarSpace = useTabBarSpace();
   const router = useRouter();
   const likes = useAppStore((s) => s.likes);
   const getUserById = useAppStore((s) => s.getUserById);
@@ -41,7 +43,7 @@ export default function Likes() {
         keyExtractor={(item) => item.user!.id}
         numColumns={2}
         columnWrapperStyle={{ gap: spacing.md }}
-        contentContainerStyle={styles.grid}
+        contentContainerStyle={[styles.grid, { paddingBottom: tabBarSpace }]}
         renderItem={({ item }) => {
           const u = item.user!;
           const isMatch = matches.some((m) => m.matchedUserId === u.id);

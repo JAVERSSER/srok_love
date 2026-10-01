@@ -9,8 +9,10 @@ import { MatchModal } from "@/components/MatchModal";
 import { EmptyState } from "@/components/EmptyState";
 import { colors } from "@/constants/colors";
 import { spacing, font, shadow } from "@/constants/spacing";
+import { useTabBarSpace } from "@/components/GlassTabBar";
 
 export default function Discover() {
+  const tabBarSpace = useTabBarSpace();
   const router = useRouter();
   const getDiscoverQueue = useAppStore((s) => s.getDiscoverQueue);
   const likeUser = useAppStore((s) => s.likeUser);
@@ -42,7 +44,7 @@ export default function Discover() {
   const next = queue[1];
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
+    <SafeAreaView style={[styles.container, { paddingBottom: tabBarSpace }]} edges={["top"]}>
       <View style={styles.header}>
         <Text style={styles.title}>Discover</Text>
         <Pressable onPress={() => router.push("/preferences")} hitSlop={10}>
