@@ -58,17 +58,29 @@ export default function RootLayout() {
 
     const vv = window.visualViewport;
     const root = document.documentElement;
-    const sync = () => {
+    // These events fire many times per frame while the keyboard animates;
+    // batch to one write per frame and skip no-op writes to avoid relayouts.
+    let frame = 0;
+    let last = "";
+    const apply = () => {
+      frame = 0;
       if (!vv) return;
+      const next = `${vv.height}|${vv.offsetTop}`;
+      if (next === last) return;
+      last = next;
       root.style.setProperty("--vv-height", `${vv.height}px`);
       root.style.setProperty("--vv-top", `${vv.offsetTop}px`);
     };
-    sync();
+    const sync = () => {
+      if (!frame) frame = requestAnimationFrame(apply);
+    };
+    apply();
     vv?.addEventListener("resize", sync);
     vv?.addEventListener("scroll", sync);
     return () => {
       vv?.removeEventListener("resize", sync);
       vv?.removeEventListener("scroll", sync);
+      cancelAnimationFrame(frame);
       root.style.removeProperty("--vv-height");
       root.style.removeProperty("--vv-top");
       viewport.content = prevViewport;

@@ -314,7 +314,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       createdAt: new Date().toISOString(),
     };
     set((s) => ({ messages: [...s.messages, msg] }));
-    persist(get());
+    // Only messages changed; persisting everything (photos included) on every
+    // send blocks the UI thread and makes the chat feel laggy.
+    storage.set(KEYS.messages, get().messages);
 
     // Simulate a reply after a short delay (demo only).
     setTimeout(() => {
@@ -326,7 +328,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         createdAt: new Date().toISOString(),
       };
       set((s) => ({ messages: [...s.messages, reply] }));
-      persist(get());
+      storage.set(KEYS.messages, get().messages);
     }, 1400);
   },
 

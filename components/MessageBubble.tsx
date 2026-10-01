@@ -9,7 +9,8 @@ interface Props {
   mine: boolean;
 }
 
-export function MessageBubble({ text, time, mine }: Props) {
+// Memoized so typing in the chat input doesn't re-render every bubble.
+export const MessageBubble = React.memo(function MessageBubble({ text, time, mine }: Props) {
   return (
     <View style={[styles.row, mine ? styles.rowMine : styles.rowТheirs]}>
       <View style={[styles.bubble, mine ? styles.mine : styles.theirs]}>
@@ -20,7 +21,7 @@ export function MessageBubble({ text, time, mine }: Props) {
       </Text>
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   row: { marginBottom: spacing.md, maxWidth: "80%" },

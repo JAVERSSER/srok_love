@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import {
   View,
   Text,
@@ -15,6 +15,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useAppStore } from "@/store/appStore";
 import { ProfilePhoto } from "@/components/ProfilePhoto";
 import { MessageBubble } from "@/components/MessageBubble";
+import type { Message } from "@/models";
 import { colors } from "@/constants/colors";
 import { spacing, font } from "@/constants/spacing";
 
@@ -35,13 +36,31 @@ export default function Chat() {
   const listRef = useRef<FlatList>(null);
   const inputRef = useRef<TextInput>(null);
 
-  const convo = allMessages
-    .filter((m) => m.conversationId === `conv_${id}`)
-    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  // Memoized: the screen re-renders on every keystroke, and re-filtering and
+  // re-sorting all messages each time makes typing lag.
+  const convo = useMemo(
+    () =>
+      allMessages
+        .filter((m) => m.conversationId === `conv_${id}`)
+        .sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
+    [allMessages, id]
+  );
 
   useEffect(() => {
-    setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
+    // Wait one frame for the new bubble to lay out, then scroll to it.
+    requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
   }, [convo.length]);
+
+  const renderItem = useCallback(
+    ({ item }: { item: Message }) => (
+      <MessageBubble
+        text={item.text}
+        time={formatTime(item.createdAt)}
+        mine={item.senderId === "me"}
+      />
+    ),
+    []
+  );
 
   if (!user) {
     return (
@@ -92,13 +111,7 @@ export default function Chat() {
             </Text>
           </View>
         }
-        renderItem={({ item }) => (
-          <MessageBubble
-            text={item.text}
-            time={formatTime(item.createdAt)}
-            mine={item.senderId === "me"}
-          />
-        )}
+        renderItem={renderItem}
       />
 
       <KeyboardAvoidingView
