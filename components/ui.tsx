@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   Text,
   Pressable,
@@ -6,7 +6,10 @@ import {
   View,
   ViewStyle,
   TextStyle,
+  TextInput,
+  TextInputProps,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { colors } from "@/constants/colors";
 import { radius, spacing, font, shadow } from "@/constants/spacing";
 
@@ -99,6 +102,51 @@ export function SectionTitle({ children, style }: { children: string; style?: Te
   return <Text style={[styles.section, style]}>{children}</Text>;
 }
 
+export function TextField({
+  label,
+  error,
+  secure,
+  style,
+  ...inputProps
+}: TextInputProps & {
+  label: string;
+  error?: string | null;
+  secure?: boolean;
+}) {
+  const [hidden, setHidden] = useState(true);
+  return (
+    <View style={styles.field}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <View style={[styles.inputWrap, !!error && styles.inputWrapError]}>
+        <TextInput
+          style={[styles.input, style]}
+          placeholderTextColor={colors.textTertiary}
+          secureTextEntry={secure && hidden}
+          autoCapitalize="none"
+          autoCorrect={false}
+          {...inputProps}
+        />
+        {secure ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={hidden ? "Show password" : "Hide password"}
+            onPress={() => setHidden((h) => !h)}
+            hitSlop={8}
+            style={styles.eye}
+          >
+            <Ionicons
+              name={hidden ? "eye-outline" : "eye-off-outline"}
+              size={20}
+              color={colors.textTertiary}
+            />
+          </Pressable>
+        ) : null}
+      </View>
+      {error ? <Text style={styles.fieldError}>{error}</Text> : null}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   primary: {
     backgroundColor: colors.primary,
@@ -133,6 +181,31 @@ const styles = StyleSheet.create({
   rowLabel: { fontSize: font.body, color: colors.text, fontWeight: "600" },
   rowRight: { flexDirection: "row", alignItems: "center", gap: 8 },
   rowValue: { fontSize: font.body, color: colors.textSecondary },
+  field: { marginTop: spacing.lg },
+  fieldLabel: {
+    fontSize: font.small,
+    fontWeight: "700",
+    color: colors.textSecondary,
+    marginBottom: spacing.sm,
+  },
+  inputWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  inputWrapError: { borderColor: colors.danger },
+  input: {
+    flex: 1,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    fontSize: font.body,
+    color: colors.text,
+  },
+  eye: { paddingHorizontal: spacing.md },
+  fieldError: { color: colors.danger, fontSize: font.small, marginTop: spacing.xs },
   section: {
     fontSize: font.small,
     fontWeight: "700",

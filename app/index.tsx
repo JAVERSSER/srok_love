@@ -6,11 +6,13 @@ import { useAppStore } from "@/store/appStore";
 import { colors } from "@/constants/colors";
 import { spacing, font } from "@/constants/spacing";
 import { PrimaryButton, GhostButton } from "@/components/ui";
+import { AUTH_DISABLED } from "@/constants/api";
 
 export default function Welcome() {
   const router = useRouter();
   const onboarded = useAppStore((s) => s.onboarded);
   const loggedIn = useAppStore((s) => s.loggedIn);
+  const skipAuth = useAppStore((s) => s.skipAuth);
 
   // If already onboarded + logged in, go straight to the app.
   useEffect(() => {
@@ -25,9 +27,12 @@ export default function Welcome() {
   };
 
   const login = () => {
-    useAppStore.getState().login();
-    if (!onboarded) useAppStore.getState().setOnboarded(true);
-    router.replace("/(tabs)/discover");
+    if (AUTH_DISABLED) {
+      skipAuth();
+      router.replace("/(tabs)/discover");
+      return;
+    }
+    router.push("/login");
   };
 
   return (

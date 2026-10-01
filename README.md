@@ -1,7 +1,16 @@
 # SrokLove 💗
 
 A Cambodia-focused dating app demo built with **React Native + TypeScript + Expo + Expo Router**.
-Fully offline: all data is mock data persisted locally with AsyncStorage. No backend required.
+Accounts and profile photos use the Django backend (`http://139.59.249.224:8000` by default);
+discovery, matches and chat are still mock data persisted locally with AsyncStorage.
+
+## Backend
+
+- Config: `constants/api.ts` (base URL + endpoint paths). Override the server with
+  `EXPO_PUBLIC_API_URL=http://<host>:8000` in a `.env` file.
+- Client: `services/api.ts` — login, token refresh (automatic on 401), photo upload/assign.
+- Web production builds call `/api/*` on their own origin and `vercel.json` proxies it to
+  the VPS, because an HTTPS page can't call a plain-HTTP server directly.
 
 ## Requirements
 
@@ -46,7 +55,7 @@ components/    reusable UI (ProfileCard, MatchModal, etc.)
 constants/     colors, spacing, provinces
 data/          mock users + seed data
 models/        TypeScript interfaces
-services/      AsyncStorage wrapper
+services/      API client, AsyncStorage wrapper
 store/         Zustand store (all business logic — swap mock data for API later)
 ```
 

@@ -39,6 +39,9 @@ export const storage = {
 export const KEYS = {
   onboarded: "onboarded",
   loggedIn: "loggedIn",
+  account: "account",
+  tokens: "tokens",
+  myPhotos: "myPhotos",
   currentUser: "currentUser",
   likes: "likes",
   passes: "passes",

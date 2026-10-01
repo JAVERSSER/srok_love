@@ -21,7 +21,13 @@
       "bundler": "metro"
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "SrokLove needs access to your photos so you can add them to your profile."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": false

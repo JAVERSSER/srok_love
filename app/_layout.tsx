@@ -52,6 +52,8 @@ export default function RootLayout() {
               <Stack.Screen name="index" />
               <Stack.Screen name="onboarding" />
               <Stack.Screen name="create-profile" />
+              <Stack.Screen name="sign-up" />
+              <Stack.Screen name="login" />
               <Stack.Screen name="(tabs)" />
               <Stack.Screen name="profile/[id]" options={{ presentation: "card" }} />
               <Stack.Screen name="chat/[id]" />

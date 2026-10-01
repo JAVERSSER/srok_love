@@ -11,6 +11,7 @@ import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Image } from "expo-image";
 import { useAppStore } from "@/store/appStore";
+import { AUTH_DISABLED } from "@/constants/api";
 import { colors } from "@/constants/colors";
 import { spacing, font, radius } from "@/constants/spacing";
 import { PrimaryButton } from "@/components/ui";
@@ -27,7 +28,7 @@ import { Gender } from "@/models";
 export default function CreateProfile() {
   const router = useRouter();
   const updateCurrentUser = useAppStore((s) => s.updateCurrentUser);
-  const login = useAppStore((s) => s.login);
+  const skipAuth = useAppStore((s) => s.skipAuth);
 
   const [name, setName] = useState("");
   const [age, setAge] = useState("25");
@@ -61,8 +62,13 @@ export default function CreateProfile() {
       interests,
       photos: [`https://picsum.photos/seed/${name || "me"}/600/800`],
     });
-    login();
-    router.replace("/(tabs)/discover");
+    if (AUTH_DISABLED) {
+      skipAuth();
+      router.replace("/(tabs)/discover");
+      return;
+    }
+    // Profile is saved; next step is creating login credentials.
+    router.push("/sign-up");
   };
 
   return (

@@ -17,8 +17,8 @@ export default function Profile() {
   const user = useAppStore((s) => s.currentUser);
   const logout = useAppStore((s) => s.logout);
 
-  const doLogout = async () => {
-    await logout();
+  const doLogout = () => {
+    logout();
     router.replace("/");
   };
 

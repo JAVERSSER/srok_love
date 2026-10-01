@@ -2,7 +2,11 @@ import { create } from "zustand";
 import { storage, KEYS } from "@/services/storage";
 import { mockUsers } from "@/data/users";
 import { defaultCurrentUser, seedNotifications } from "@/data/seed";
+import * as api from "@/services/api";
+import { AUTH_DISABLED } from "@/constants/api";
 import {
+  Account,
+  ProfilePhoto,
   UserProfile,
   Like,
   Match,
@@ -40,6 +44,8 @@ interface AppState {
   hydrated: boolean;
   onboarded: boolean;
   loggedIn: boolean;
+  account: Account | null;
+  myPhotos: ProfilePhoto[];
 
   currentUser: UserProfile;
   users: UserProfile[];
@@ -57,8 +63,15 @@ interface AppState {
 
   hydrate: () => Promise<void>;
   setOnboarded: (v: boolean) => void;
-  login: () => void;
-  logout: () => Promise<void>;
+  // Both throw api.ApiError with a user-facing message on failure.
+  register: (username: string, password: string) => Promise<void>;
+  login: (loginId: string, password: string) => Promise<void>;
+  logout: () => void;
+  // Only used while AUTH_DISABLED: enters the app without an account.
+  skipAuth: () => void;
+
+  addPhoto: (image: api.LocalImage) => Promise<void>;
+  removePhoto: (id: number) => Promise<void>;
 
   updateCurrentUser: (patch: Partial<UserProfile>) => void;
 
@@ -84,6 +97,8 @@ interface AppState {
 function persist(state: AppState) {
   storage.set(KEYS.onboarded, state.onboarded);
   storage.set(KEYS.loggedIn, state.loggedIn);
+  storage.set(KEYS.account, state.account);
+  storage.set(KEYS.myPhotos, state.myPhotos);
   storage.set(KEYS.currentUser, state.currentUser);
   storage.set(KEYS.likes, state.likes);
   storage.set(KEYS.passes, state.passes);
@@ -99,6 +114,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   hydrated: false,
   onboarded: false,
   loggedIn: false,
+  account: null,
+  myPhotos: [],
 
   currentUser: defaultCurrentUser,
   users: mockUsers,
@@ -118,6 +135,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     const [
       onboarded,
       loggedIn,
+      account,
+      myPhotos,
       currentUser,
       likes,
       passes,
@@ -130,6 +149,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     ] = await Promise.all([
       storage.get<boolean>(KEYS.onboarded),
       storage.get<boolean>(KEYS.loggedIn),
+      storage.get<Account>(KEYS.account),
+      storage.get<ProfilePhoto[]>(KEYS.myPhotos),
       storage.get<UserProfile>(KEYS.currentUser),
       storage.get<Like[]>(KEYS.likes),
       storage.get<string[]>(KEYS.passes),
@@ -143,8 +164,13 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     set({
       hydrated: true,
-      onboarded: onboarded ?? false,
-      loggedIn: loggedIn ?? false,
+      onboarded: AUTH_DISABLED || (onboarded ?? false),
+      // A session without a server account (including old on-device
+      // accounts, which had a passwordHash) isn't valid, so log in again.
+      loggedIn:
+        AUTH_DISABLED || ((loggedIn ?? false) && !!account && !("passwordHash" in account)),
+      account: account ?? null,
+      myPhotos: myPhotos ?? [],
       currentUser: currentUser ?? defaultCurrentUser,
       likes: likes ?? [],
       passes: passes ?? [],
@@ -162,27 +188,58 @@ export const useAppStore = create<AppState>((set, get) => ({
     persist(get());
   },
 
-  login: () => {
-    set({ loggedIn: true });
+  register: async (username, password) => {
+    const user = await api.register(username, password);
+    set({
+      account: { username: user.username, userId: user.id, createdAt: new Date().toISOString() },
+      loggedIn: true,
+    });
     persist(get());
   },
 
-  logout: async () => {
-    await storage.clearAll();
+  login: async (loginId, password) => {
+    const user = await api.login(loginId, password);
     set({
-      onboarded: false,
-      loggedIn: false,
-      currentUser: defaultCurrentUser,
-      likes: [],
-      passes: [],
-      matches: [],
-      messages: [],
-      preference: defaultPreference,
-      privacy: defaultPrivacy,
-      blocked: [],
-      notifications: seedNotifications,
-      lastMatch: null,
+      account: { username: user.username, userId: user.id, createdAt: new Date().toISOString() },
+      loggedIn: true,
+      onboarded: true,
     });
+    persist(get());
+  },
+
+  // Ends the session but keeps the profile on this device.
+  logout: () => {
+    api.clearTokens();
+    set({ loggedIn: false, lastMatch: null });
+    persist(get());
+  },
+
+  skipAuth: () => {
+    set({ loggedIn: true, onboarded: true });
+    persist(get());
+  },
+
+  addPhoto: async (image) => {
+    const uploaded = await api.uploadPhoto(image);
+    const myPhotos = [...get().myPhotos, { id: uploaded.id, url: uploaded.url }];
+    await api.assignPhotos(myPhotos.map((p) => p.id));
+    set((s) => ({ myPhotos, currentUser: { ...s.currentUser, photos: myPhotos.map((p) => p.url) } }));
+    persist(get());
+  },
+
+  removePhoto: async (id) => {
+    const myPhotos = get().myPhotos.filter((p) => p.id !== id);
+    await api.assignPhotos(myPhotos.map((p) => p.id));
+    set((s) => ({
+      myPhotos,
+      currentUser: {
+        ...s.currentUser,
+        photos: myPhotos.length
+          ? myPhotos.map((p) => p.url)
+          : [`https://picsum.photos/seed/${s.currentUser.name || "me"}/600/800`],
+      },
+    }));
+    persist(get());
   },
 
   updateCurrentUser: (patch) => {
@@ -366,3 +423,9 @@ const replies = [
 function pickReply(): string {
   return replies[Math.floor(Math.random() * replies.length)];
 }
+
+// If the refresh token expires, drop back to the welcome/login flow.
+api.setOnSessionExpired(() => {
+  if (AUTH_DISABLED) return;
+  if (useAppStore.getState().loggedIn) useAppStore.getState().logout();
+});

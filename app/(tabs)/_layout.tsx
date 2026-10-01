@@ -1,11 +1,15 @@
 import React from "react";
-import { Tabs } from "expo-router";
+import { Redirect, Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { GlassTabBar } from "@/components/GlassTabBar";
 import { useAppStore } from "@/store/appStore";
 
 export default function TabsLayout() {
   const matchCount = useAppStore((s) => s.matches.length);
+  const loggedIn = useAppStore((s) => s.loggedIn);
+
+  // Also catches an expired session (the API logs the user out).
+  if (!loggedIn) return <Redirect href="/" />;
 
   return (
     <Tabs

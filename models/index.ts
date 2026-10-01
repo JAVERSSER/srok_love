@@ -93,3 +93,15 @@ export interface BlockedUser {
   userId: string;
   createdAt: string;
 }
+
+export interface Account {
+  username: string;
+  userId: string | null; // the backend's user id, when known
+  createdAt: string;
+}
+
+// A photo uploaded to the backend and assigned to the user's profile.
+export interface ProfilePhoto {
+  id: number;
+  url: string;
+}
