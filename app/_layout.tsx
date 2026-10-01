@@ -42,7 +42,7 @@ export default function RootLayout() {
         top: var(--vv-top, 0px);
         height: var(--vv-height, 100dvh);
       }
-      /* Roughly the iOS keyboard's own timing, so content moves with it. */
+      /* Roughly the mobile keyboard's own timing, so content moves with it. */
       .kb-animate #root { transition: height 300ms cubic-bezier(0.2, 0.8, 0.2, 1); }
       @media (pointer: coarse) {
         input, textarea { font-size: 16px !important; }
@@ -80,24 +80,32 @@ export default function RootLayout() {
     // predicted size in step with the keyboard; the real resize event then
     // just confirms it. Remembered across reloads so even the first open of
     // a session is smooth.
+    //
+    // Android Chrome is the opposite: it fires resize on nearly every frame
+    // of the keyboard animation, and relaying out the whole app each time
+    // stutters. There we use the same prediction and only apply the real
+    // size once the keyboard has settled.
     const isIOS =
       /iP(hone|ad|od)/.test(navigator.userAgent) ||
       (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    const isTouch = isIOS || !!window.matchMedia?.("(pointer: coarse)").matches;
+    const SETTLE_MS = 120;
     const KB_KEY = "sroklove:keyboardHeight";
     let keyboardHeight = 0;
     try {
       keyboardHeight = Number(localStorage.getItem(KB_KEY)) || 0;
     } catch {}
-    if (isIOS) root.classList.add("kb-animate");
+    if (isTouch) root.classList.add("kb-animate");
 
     const isTextField = (el: Element | null) =>
       el instanceof HTMLTextAreaElement ||
       (el instanceof HTMLInputElement &&
         !["checkbox", "radio", "button", "submit", "range", "file"].includes(el.type));
 
-    // visualViewport events fire many times per frame while the keyboard
-    // animates; batch to one write per frame.
+    // iOS: batch visualViewport events to one write per frame.
+    // Other touch devices: wait for the keyboard animation to settle.
     let frame = 0;
+    let settle: ReturnType<typeof setTimeout> | undefined;
     const applyResize = () => {
       frame = 0;
       if (!vv) return;
@@ -112,19 +120,24 @@ export default function RootLayout() {
       setTop(vv.offsetTop);
     };
     const onResize = () => {
-      if (!frame) frame = requestAnimationFrame(applyResize);
+      if (isIOS || !isTouch) {
+        if (!frame) frame = requestAnimationFrame(applyResize);
+      } else {
+        clearTimeout(settle);
+        settle = setTimeout(applyResize, SETTLE_MS);
+      }
     };
     // Panning doesn't change the visible height; only follow the offset, so
     // it can't undo a predicted height mid-animation.
     const onScroll = () => vv && setTop(vv.offsetTop);
 
     const onFocusIn = (e: FocusEvent) => {
-      if (isIOS && keyboardHeight && isTextField(e.target as Element)) {
+      if (isTouch && keyboardHeight && isTextField(e.target as Element)) {
         setHeight(window.innerHeight - keyboardHeight);
       }
     };
     const onFocusOut = () => {
-      if (!isIOS) return;
+      if (!isTouch) return;
       // Focus may be moving straight to another field; only collapse if not.
       setTimeout(() => {
         if (!isTextField(document.activeElement)) {
@@ -145,6 +158,7 @@ export default function RootLayout() {
       document.removeEventListener("focusin", onFocusIn);
       document.removeEventListener("focusout", onFocusOut);
       cancelAnimationFrame(frame);
+      clearTimeout(settle);
       root.classList.remove("kb-animate");
       root.style.removeProperty("--vv-height");
       root.style.removeProperty("--vv-top");
