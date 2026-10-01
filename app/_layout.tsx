@@ -26,10 +26,43 @@ export default function RootLayout() {
     // visible viewport instead. Injected at runtime since expo-router's
     // `+html.tsx` override only applies to static web output, not this
     // project's SPA output mode.
+    //
+    // When the on-screen keyboard opens, mobile browsers shrink only the
+    // *visual* viewport and pan the page around, pushing the header off
+    // screen. Pinning #root to the visual viewport keeps inputs sitting right
+    // above the keyboard, like a native chat app.
+    //
+    // iOS Safari zooms into any focused input with font-size < 16px and never
+    // zooms back out, so touch devices get 16px inputs.
     const style = document.createElement("style");
-    style.textContent = `html, body, #root { height: 100dvh; }`;
+    style.textContent = `
+      html, body { height: 100dvh; overflow: hidden; }
+      #root {
+        position: fixed; left: 0; right: 0;
+        top: var(--vv-top, 0px);
+        height: var(--vv-height, 100dvh);
+      }
+      @media (pointer: coarse) {
+        input, textarea { font-size: 16px !important; }
+      }
+    `;
     document.head.appendChild(style);
+
+    const vv = window.visualViewport;
+    const root = document.documentElement;
+    const sync = () => {
+      if (!vv) return;
+      root.style.setProperty("--vv-height", `${vv.height}px`);
+      root.style.setProperty("--vv-top", `${vv.offsetTop}px`);
+    };
+    sync();
+    vv?.addEventListener("resize", sync);
+    vv?.addEventListener("scroll", sync);
     return () => {
+      vv?.removeEventListener("resize", sync);
+      vv?.removeEventListener("scroll", sync);
+      root.style.removeProperty("--vv-height");
+      root.style.removeProperty("--vv-top");
       document.head.removeChild(style);
     };
   }, []);

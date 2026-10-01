@@ -33,6 +33,7 @@ export default function Chat() {
   const user = getUserById(id);
   const [text, setText] = useState("");
   const listRef = useRef<FlatList>(null);
+  const inputRef = useRef<TextInput>(null);
 
   const convo = allMessages
     .filter((m) => m.conversationId === `conv_${id}`)
@@ -55,6 +56,10 @@ export default function Chat() {
     if (!trimmed) return;
     sendMessage(user.id, trimmed);
     setText("");
+    // Tapping the send button steals focus from the input, which closes the
+    // keyboard. Refocusing within the same tap keeps it open so the user can
+    // keep typing.
+    inputRef.current?.focus();
   };
 
   return (
@@ -78,6 +83,8 @@ export default function Chat() {
         data={convo}
         keyExtractor={(m) => m.id}
         contentContainerStyle={styles.messages}
+        // The list shrinks when the keyboard opens; keep the latest message in view.
+        onLayout={() => listRef.current?.scrollToEnd({ animated: false })}
         ListEmptyComponent={
           <View style={styles.empty}>
             <Text style={styles.emptyText}>
@@ -100,6 +107,7 @@ export default function Chat() {
       >
         <View style={styles.inputBar}>
           <TextInput
+            ref={inputRef}
             style={styles.input}
             value={text}
             onChangeText={setText}
