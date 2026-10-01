@@ -23,4 +23,4 @@ export const endpoints = {
 
 // Temporary switch for UI testing: skips login/sign-up and treats the app as
 // logged in. Set back to false to re-enable the real auth flow.
-export const AUTH_DISABLED = true;
+export const AUTH_DISABLED = false;
