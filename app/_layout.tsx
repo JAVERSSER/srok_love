@@ -42,6 +42,8 @@ export default function RootLayout() {
         top: var(--vv-top, 0px);
         height: var(--vv-height, 100dvh);
       }
+      /* Roughly the iOS keyboard's own timing, so content moves with it. */
+      .kb-animate #root { transition: height 300ms cubic-bezier(0.2, 0.8, 0.2, 1); }
       @media (pointer: coarse) {
         input, textarea { font-size: 16px !important; }
       }
@@ -58,29 +60,92 @@ export default function RootLayout() {
 
     const vv = window.visualViewport;
     const root = document.documentElement;
-    // These events fire many times per frame while the keyboard animates;
-    // batch to one write per frame and skip no-op writes to avoid relayouts.
+
+    let lastHeight = -1;
+    let lastTop = -1;
+    const setHeight = (h: number) => {
+      if (h === lastHeight) return;
+      lastHeight = h;
+      root.style.setProperty("--vv-height", `${h}px`);
+    };
+    const setTop = (t: number) => {
+      if (t === lastTop) return;
+      lastTop = t;
+      root.style.setProperty("--vv-top", `${t}px`);
+    };
+
+    // iOS only reports the keyboard's size once it has finished opening, so
+    // following visualViewport alone makes the app snap into place late. We
+    // remember the keyboard height and, on focus/blur, animate to the
+    // predicted size in step with the keyboard; the real resize event then
+    // just confirms it. Remembered across reloads so even the first open of
+    // a session is smooth.
+    const isIOS =
+      /iP(hone|ad|od)/.test(navigator.userAgent) ||
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    const KB_KEY = "sroklove:keyboardHeight";
+    let keyboardHeight = 0;
+    try {
+      keyboardHeight = Number(localStorage.getItem(KB_KEY)) || 0;
+    } catch {}
+    if (isIOS) root.classList.add("kb-animate");
+
+    const isTextField = (el: Element | null) =>
+      el instanceof HTMLTextAreaElement ||
+      (el instanceof HTMLInputElement &&
+        !["checkbox", "radio", "button", "submit", "range", "file"].includes(el.type));
+
+    // visualViewport events fire many times per frame while the keyboard
+    // animates; batch to one write per frame.
     let frame = 0;
-    let last = "";
-    const apply = () => {
+    const applyResize = () => {
       frame = 0;
       if (!vv) return;
-      const next = `${vv.height}|${vv.offsetTop}`;
-      if (next === last) return;
-      last = next;
-      root.style.setProperty("--vv-height", `${vv.height}px`);
-      root.style.setProperty("--vv-top", `${vv.offsetTop}px`);
+      const kb = window.innerHeight - vv.height;
+      if (kb > 120 && Math.abs(kb - keyboardHeight) > 1) {
+        keyboardHeight = kb;
+        try {
+          localStorage.setItem(KB_KEY, String(kb));
+        } catch {}
+      }
+      setHeight(vv.height);
+      setTop(vv.offsetTop);
     };
-    const sync = () => {
-      if (!frame) frame = requestAnimationFrame(apply);
+    const onResize = () => {
+      if (!frame) frame = requestAnimationFrame(applyResize);
     };
-    apply();
-    vv?.addEventListener("resize", sync);
-    vv?.addEventListener("scroll", sync);
+    // Panning doesn't change the visible height; only follow the offset, so
+    // it can't undo a predicted height mid-animation.
+    const onScroll = () => vv && setTop(vv.offsetTop);
+
+    const onFocusIn = (e: FocusEvent) => {
+      if (isIOS && keyboardHeight && isTextField(e.target as Element)) {
+        setHeight(window.innerHeight - keyboardHeight);
+      }
+    };
+    const onFocusOut = () => {
+      if (!isIOS) return;
+      // Focus may be moving straight to another field; only collapse if not.
+      setTimeout(() => {
+        if (!isTextField(document.activeElement)) {
+          setHeight(window.innerHeight);
+          setTop(0);
+        }
+      }, 0);
+    };
+
+    applyResize();
+    vv?.addEventListener("resize", onResize);
+    vv?.addEventListener("scroll", onScroll);
+    document.addEventListener("focusin", onFocusIn);
+    document.addEventListener("focusout", onFocusOut);
     return () => {
-      vv?.removeEventListener("resize", sync);
-      vv?.removeEventListener("scroll", sync);
+      vv?.removeEventListener("resize", onResize);
+      vv?.removeEventListener("scroll", onScroll);
+      document.removeEventListener("focusin", onFocusIn);
+      document.removeEventListener("focusout", onFocusOut);
       cancelAnimationFrame(frame);
+      root.classList.remove("kb-animate");
       root.style.removeProperty("--vv-height");
       root.style.removeProperty("--vv-top");
       viewport.content = prevViewport;
