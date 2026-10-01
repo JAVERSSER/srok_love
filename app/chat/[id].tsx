@@ -120,6 +120,35 @@ export default function Chat() {
   const listRef = useRef<FlatList>(null);
   const inputRef = useRef<TextInput>(null);
 
+  // On web, react-native-web's TextInput ref is the underlying <textarea>.
+  const inputEl = () =>
+    Platform.OS === "web" ? (inputRef.current as unknown as HTMLTextAreaElement | null) : null;
+
+  // Focusing an input that the keyboard will cover makes iOS Safari pan the
+  // whole page up, and then our viewport pinning (app/_layout.tsx) moves it
+  // back: the screen visibly jumps. `preventScroll` stops the pan, so the
+  // only movement left is the app shrinking to fit above the keyboard.
+  const focusInput = useCallback(() => {
+    const el = inputEl();
+    if (el) el.focus({ preventScroll: true });
+    else inputRef.current?.focus();
+  }, []);
+
+  // Route the user's own first tap on the input through focusInput too,
+  // since a native tap-to-focus would trigger the same pan.
+  const hasUser = !!user;
+  useEffect(() => {
+    const el = inputEl();
+    if (!el) return;
+    const onTouchEnd = (e: TouchEvent) => {
+      if (document.activeElement === el) return; // already focused: allow caret moves
+      e.preventDefault();
+      focusInput();
+    };
+    el.addEventListener("touchend", onTouchEnd, { passive: false });
+    return () => el.removeEventListener("touchend", onTouchEnd);
+  }, [hasUser, focusInput]);
+
   // Memoized: the screen re-renders on every keystroke, and re-filtering and
   // re-sorting all messages each time makes typing lag.
   const convo = useMemo(
@@ -172,7 +201,7 @@ export default function Chat() {
     // Tapping the send button steals focus from the input, which closes the
     // keyboard. Refocusing within the same tap keeps it open so the user can
     // keep typing.
-    inputRef.current?.focus();
+    focusInput();
   };
 
   const onKeyPress = (e: NativeSyntheticEvent<TextInputKeyPressEventData>) => {
@@ -186,7 +215,7 @@ export default function Chat() {
 
   const pickIcebreaker = (idea: string) => {
     setText(idea);
-    inputRef.current?.focus();
+    focusInput();
   };
 
   const canSend = text.trim().length > 0;
