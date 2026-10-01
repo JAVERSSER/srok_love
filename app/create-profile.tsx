@@ -6,6 +6,8 @@ import {
   ScrollView,
   TextInput,
   Pressable,
+  Platform,
+  Alert,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -29,6 +31,8 @@ export default function CreateProfile() {
   const router = useRouter();
   const updateCurrentUser = useAppStore((s) => s.updateCurrentUser);
   const skipAuth = useAppStore((s) => s.skipAuth);
+  const setOnboarded = useAppStore((s) => s.setOnboarded);
+  const uploadPendingPhoto = useAppStore((s) => s.uploadPendingPhoto);
   const photo = useAppStore((s) => s.pendingPhoto);
   const setPhoto = useAppStore((s) => s.setPendingPhoto);
 
@@ -42,6 +46,7 @@ export default function CreateProfile() {
   const [education, setEducation] = useState("");
   const [goal, setGoal] = useState("");
   const [interests, setInterests] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false);
 
   const toggleInterest = (i: string) =>
     setInterests((prev) =>
@@ -61,8 +66,8 @@ export default function CreateProfile() {
     !!province &&
     !!goal;
 
-  const save = () => {
-    if (!valid || !gender || !lookingFor) return;
+  const save = async () => {
+    if (!valid || !gender || !lookingFor || saving) return;
     updateCurrentUser({
       name: name.trim(),
       age: Number(age),
@@ -80,8 +85,20 @@ export default function CreateProfile() {
       router.replace("/(tabs)/discover");
       return;
     }
-    // Profile is saved; next step is creating login credentials.
-    router.push("/sign-up");
+    // The account was created on the previous screen, so we're logged in
+    // and can upload the photo now.
+    setSaving(true);
+    try {
+      await uploadPendingPhoto();
+    } catch {
+      const msg = "Your profile was saved, but your photo didn't upload. Add it again from Edit Profile.";
+      if (Platform.OS === "web") window.alert(msg);
+      else Alert.alert("Photo not uploaded", msg);
+    } finally {
+      setSaving(false);
+    }
+    setOnboarded(true);
+    router.replace("/(tabs)/discover");
   };
 
   return (
@@ -172,9 +189,9 @@ export default function CreateProfile() {
         </View>
 
         <PrimaryButton
-          label="Start Discovering"
+          label={saving ? "Saving…" : "Start Discovering"}
           onPress={save}
-          disabled={!valid}
+          disabled={!valid || saving}
           style={{ marginTop: spacing.xl }}
         />
         <View style={{ height: spacing.xxl }} />

@@ -222,14 +222,22 @@ export async function login(loginId: string, password: string): Promise<AuthUser
 export interface RegisterInput {
   username: string;
   email: string;
+  phoneNumber: string;
   password: string;
   /** YYYY-MM-DD */
   dateOfBirth: string;
 }
 
-export async function register({ username, email, password, dateOfBirth }: RegisterInput): Promise<AuthUser> {
+export async function register({ username, email, phoneNumber, password, dateOfBirth }: RegisterInput): Promise<AuthUser> {
   await request(endpoints.register, {
-    body: { username: username.trim(), email: email.trim(), password, date_of_birth: dateOfBirth.trim() },
+    body: {
+      username: username.trim(),
+      email: email.trim(),
+      // Change the key if the backend names this field differently.
+      phone_number: phoneNumber.replace(/[\s-]/g, ""),
+      password,
+      date_of_birth: dateOfBirth.trim(),
+    },
     auth: false,
   });
   // Log in right away so we get a session whether or not register returns one.

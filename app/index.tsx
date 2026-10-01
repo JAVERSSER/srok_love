@@ -14,17 +14,14 @@ export default function Welcome() {
   const loggedIn = useAppStore((s) => s.loggedIn);
   const skipAuth = useAppStore((s) => s.skipAuth);
 
-  // If already onboarded + logged in, go straight to the app.
+  // Logged in with a profile: go straight to the app. Registered but no
+  // profile yet (e.g. the app was closed mid sign-up): finish the profile.
   useEffect(() => {
-    if (onboarded && loggedIn) {
-      router.replace("/(tabs)/discover");
-    }
+    if (!loggedIn) return;
+    router.replace(onboarded ? "/(tabs)/discover" : "/create-profile");
   }, [onboarded, loggedIn]);
 
-  const getStarted = () => {
-    if (!onboarded) router.push("/onboarding");
-    else router.push("/create-profile");
-  };
+  const getStarted = () => router.push("/onboarding");
 
   const login = () => {
     if (AUTH_DISABLED) {

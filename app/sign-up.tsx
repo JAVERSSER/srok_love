@@ -5,7 +5,6 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  Alert,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -14,19 +13,22 @@ import { colors } from "@/constants/colors";
 import { spacing, font } from "@/constants/spacing";
 import { PrimaryButton, GhostButton, TextField } from "@/components/ui";
 import {
+  dateOfBirthToIso,
+  formatDateOfBirthInput,
   validateDateOfBirth,
   validateEmail,
   validatePassword,
+  validatePhoneNumber,
   validateUsername,
 } from "@/services/auth";
 
 export default function SignUp() {
   const router = useRouter();
   const register = useAppStore((s) => s.register);
-  const uploadPendingPhoto = useAppStore((s) => s.uploadPendingPhoto);
 
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
   const [dateOfBirth, setDateOfBirth] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -38,6 +40,7 @@ export default function SignUp() {
 
   const usernameError = validateUsername(username);
   const emailError = validateEmail(email);
+  const phoneError = validatePhoneNumber(phoneNumber);
   const dobError = validateDateOfBirth(dateOfBirth);
   const passwordError = validatePassword(password);
   const confirmError =
@@ -46,7 +49,7 @@ export default function SignUp() {
       : confirm !== password
         ? "Passwords do not match."
         : null;
-  const valid = !usernameError && !emailError && !dobError && !passwordError && !confirmError;
+  const valid = !usernameError && !emailError && !phoneError && !dobError && !passwordError && !confirmError;
 
   const submit = async () => {
     setSubmitted(true);
@@ -54,15 +57,9 @@ export default function SignUp() {
     setLoading(true);
     setServerError(null);
     try {
-      await register({ username, email, password, dateOfBirth });
-      try {
-        await uploadPendingPhoto();
-      } catch {
-        const msg = "Your account was created, but your photo didn't upload. Add it again from Edit Profile.";
-        if (Platform.OS === "web") window.alert(msg);
-        else Alert.alert("Photo not uploaded", msg);
-      }
-      router.replace("/(tabs)/discover");
+      await register({ username, email, phoneNumber, password, dateOfBirth: dateOfBirthToIso(dateOfBirth)! });
+      // replace, so Back can't return to the sign-up form after registering.
+      router.replace("/create-profile");
     } catch (e) {
       setServerError(e instanceof Error ? e.message : "Couldn't create your account. Please try again.");
     } finally {
@@ -108,11 +105,22 @@ export default function SignUp() {
             error={submitted ? emailError : null}
           />
           <TextField
+            label="Phone number"
+            value={phoneNumber}
+            onChangeText={setPhoneNumber}
+            placeholder="012 345 678"
+            keyboardType="phone-pad"
+            textContentType="telephoneNumber"
+            autoComplete="tel"
+            maxLength={20}
+            error={submitted ? phoneError : null}
+          />
+          <TextField
             label="Date of birth"
             value={dateOfBirth}
-            onChangeText={setDateOfBirth}
-            placeholder="YYYY-MM-DD"
-            keyboardType="numbers-and-punctuation"
+            onChangeText={(t) => setDateOfBirth(formatDateOfBirthInput(t))}
+            placeholder="DD/MM/YYYY"
+            keyboardType="number-pad"
             autoComplete="birthdate-full"
             maxLength={10}
             error={submitted ? dobError : null}
@@ -123,8 +131,10 @@ export default function SignUp() {
             onChangeText={setPassword}
             placeholder="At least 8 characters"
             secure
-            textContentType="newPassword"
-            autoComplete="new-password"
+            // "oneTimeCode" stops iOS from offering an auto-generated strong
+            // password; users pick their own.
+            textContentType="oneTimeCode"
+            autoComplete="off"
             error={submitted ? passwordError : null}
           />
           <TextField
@@ -133,8 +143,10 @@ export default function SignUp() {
             onChangeText={setConfirm}
             placeholder="Re-enter your password"
             secure
-            textContentType="newPassword"
-            autoComplete="new-password"
+            // "oneTimeCode" stops iOS from offering an auto-generated strong
+            // password; users pick their own.
+            textContentType="oneTimeCode"
+            autoComplete="off"
             onSubmitEditing={submit}
             returnKeyType="done"
             error={submitted ? confirmError : null}

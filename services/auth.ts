@@ -15,11 +15,34 @@ export function validateEmail(email: string): string | null {
   return null;
 }
 
-// Expects YYYY-MM-DD, the format the backend's date_of_birth field takes.
+// Accepts local (012 345 678) or international (+855 12 345 678) numbers;
+// spaces and dashes are ignored.
+export function validatePhoneNumber(phone: string): string | null {
+  const p = phone.replace(/[\s-]/g, "");
+  if (!/^\+?\d{8,15}$/.test(p)) return "Enter a valid phone number, e.g. 012 345 678.";
+  return null;
+}
+
+// Formats raw input as DD/MM/YYYY while the user types, inserting the slashes.
+export function formatDateOfBirthInput(text: string): string {
+  const digits = text.replace(/\D/g, "").slice(0, 8);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+}
+
+// Converts DD/MM/YYYY to YYYY-MM-DD, the format the backend's date_of_birth
+// field takes. Returns null if the input isn't in DD/MM/YYYY form.
+export function dateOfBirthToIso(dob: string): string | null {
+  const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(dob.trim());
+  return m ? `${m[3]}-${m[2]}-${m[1]}` : null;
+}
+
+// Expects DD/MM/YYYY.
 export function validateDateOfBirth(dob: string): string | null {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dob.trim());
-  if (!m) return "Use the format YYYY-MM-DD, e.g. 2002-05-14.";
-  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(dob.trim());
+  if (!m) return "Use the format DD/MM/YYYY, e.g. 14/05/2002.";
+  const [d, mo, y] = [Number(m[1]), Number(m[2]), Number(m[3])];
   const date = new Date(Date.UTC(y, mo - 1, d));
   if (date.getUTCFullYear() !== y || date.getUTCMonth() !== mo - 1 || date.getUTCDate() !== d)
     return "That date doesn't exist.";

@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import { View, Text, StyleSheet, Dimensions } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useAppStore } from "@/store/appStore";
 import { colors } from "@/constants/colors";
 import { spacing, font } from "@/constants/spacing";
 import { PrimaryButton, GhostButton } from "@/components/ui";
@@ -30,12 +29,7 @@ const steps = [
 export default function Onboarding() {
   const router = useRouter();
   const [index, setIndex] = useState(0);
-  const setOnboarded = useAppStore((s) => s.setOnboarded);
-
-  const finish = () => {
-    setOnboarded(true);
-    router.replace("/create-profile");
-  };
+  const finish = () => router.replace("/sign-up");
 
   const next = () => {
     if (index < steps.length - 1) setIndex(index + 1);
