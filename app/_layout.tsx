@@ -48,6 +48,14 @@ export default function RootLayout() {
     `;
     document.head.appendChild(style);
 
+    // Belt and braces for the zoom: `maximum-scale=1` stops iOS from
+    // auto-zooming focused inputs (iOS still allows pinch-zoom regardless).
+    const viewport =
+      document.querySelector<HTMLMetaElement>('meta[name="viewport"]') ??
+      document.head.appendChild(Object.assign(document.createElement("meta"), { name: "viewport" }));
+    const prevViewport = viewport.content;
+    viewport.content = "width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover";
+
     const vv = window.visualViewport;
     const root = document.documentElement;
     const sync = () => {
@@ -63,6 +71,7 @@ export default function RootLayout() {
       vv?.removeEventListener("scroll", sync);
       root.style.removeProperty("--vv-height");
       root.style.removeProperty("--vv-top");
+      viewport.content = prevViewport;
       document.head.removeChild(style);
     };
   }, []);

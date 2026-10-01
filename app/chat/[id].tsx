@@ -16,7 +16,7 @@ import { useAppStore } from "@/store/appStore";
 import { ProfilePhoto } from "@/components/ProfilePhoto";
 import { MessageBubble } from "@/components/MessageBubble";
 import { colors } from "@/constants/colors";
-import { spacing, font, radius } from "@/constants/spacing";
+import { spacing, font } from "@/constants/spacing";
 
 function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -106,22 +106,24 @@ export default function Chat() {
         keyboardVerticalOffset={90}
       >
         <View style={styles.inputBar}>
-          <TextInput
-            ref={inputRef}
-            style={styles.input}
-            value={text}
-            onChangeText={setText}
-            placeholder="Type a message..."
-            placeholderTextColor={colors.textTertiary}
-            multiline
-          />
-          <Pressable
-            style={[styles.sendBtn, !text.trim() && styles.sendDisabled]}
-            onPress={send}
-            disabled={!text.trim()}
-          >
-            <Ionicons name="send" size={18} color={colors.white} />
-          </Pressable>
+          <View style={styles.composer}>
+            <TextInput
+              ref={inputRef}
+              style={styles.input}
+              value={text}
+              onChangeText={setText}
+              placeholder="Type a message..."
+              placeholderTextColor={colors.textTertiary}
+              multiline
+            />
+            <Pressable
+              style={[styles.sendBtn, !text.trim() && styles.sendDisabled]}
+              onPress={send}
+              disabled={!text.trim()}
+            >
+              <Ionicons name="send" size={16} color={colors.white} />
+            </Pressable>
+          </View>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -145,28 +147,35 @@ const styles = StyleSheet.create({
   empty: { flex: 1, alignItems: "center", justifyContent: "center", paddingTop: spacing.xxxl },
   emptyText: { color: colors.textSecondary, textAlign: "center" },
   inputBar: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    gap: spacing.sm,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
     borderTopWidth: 1,
     borderTopColor: colors.divider,
   },
+  // Input and send button share one pill, ChatGPT-style.
+  composer: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: 24,
+    paddingLeft: spacing.lg,
+    paddingRight: 6,
+    paddingVertical: 6,
+  },
   input: {
     flex: 1,
-    backgroundColor: colors.surfaceAlt,
-    borderRadius: radius.lg,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    fontSize: font.body,
+    // 16px minimum: anything smaller makes iOS Safari zoom in on focus.
+    fontSize: 16,
     color: colors.text,
+    paddingVertical: 8,
+    marginRight: spacing.sm,
     maxHeight: 120,
+    ...Platform.select({ web: { outlineStyle: "none" } as object }),
   },
   sendBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: colors.primary,
     alignItems: "center",
     justifyContent: "center",
