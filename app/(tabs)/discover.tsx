@@ -1,15 +1,16 @@
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { View, Text, StyleSheet, Pressable } from "react-native";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useAppStore } from "@/store/appStore";
 import { ProfileCard, SwipeDir } from "@/components/ProfileCard";
 import { MatchModal } from "@/components/MatchModal";
-import { EmptyState } from "@/components/EmptyState";
+import { RadarPulse } from "@/components/RadarPulse";
 import { colors } from "@/constants/colors";
 import { spacing, font, shadow } from "@/constants/spacing";
 import { useTabBarSpace } from "@/components/GlassTabBar";
+import { avatarOf } from "@/models";
 
 export default function Discover() {
   const tabBarSpace = useTabBarSpace();
@@ -21,22 +22,49 @@ export default function Discover() {
   const clearLastMatch = useAppStore((s) => s.clearLastMatch);
   const currentUser = useAppStore((s) => s.currentUser);
 
-  // Re-derive queue when likes/passes/blocked change.
+  const refreshDiscover = useAppStore((s) => s.refreshDiscover);
+
+  // Re-derive queue when the server list, likes/passes/blocked change.
+  const users = useAppStore((s) => s.users);
+  const discoverIds = useAppStore((s) => s.discoverIds);
   const likes = useAppStore((s) => s.likes);
   const passes = useAppStore((s) => s.passes);
+  const matches = useAppStore((s) => s.matches);
   const blocked = useAppStore((s) => s.blocked);
   const preference = useAppStore((s) => s.preference);
 
   const queue = useMemo(
     () => getDiscoverQueue(),
-    [likes, passes, blocked, preference, getDiscoverQueue]
+    [users, discoverIds, likes, passes, matches, blocked, preference, getDiscoverQueue]
   );
 
   const [tick, setTick] = useState(0); // force refresh after action
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      await refreshDiscover();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't load profiles.");
+    } finally {
+      setLoading(false);
+    }
+  }, [refreshDiscover]);
+
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load])
+  );
 
   const handleSwipe = (dir: SwipeDir, id: string) => {
-    if (dir === "left") passUser(id);
-    else likeUser(id, dir === "up");
+    // The card leaves right away; the swipe is sent in the background and a
+    // match pops up the MatchModal through lastMatch.
+    const sent = dir === "left" ? passUser(id) : likeUser(id, dir === "up");
+    sent.catch((e) => setError(e instanceof Error ? e.message : "Couldn't send your swipe."));
     setTick((t) => t + 1);
   };
 
@@ -46,7 +74,7 @@ export default function Discover() {
   return (
     <SafeAreaView style={[styles.container, { paddingBottom: tabBarSpace }]} edges={["top"]}>
       <View style={styles.header}>
-        <Text style={styles.title}>Discover</Text>
+        <Text style={styles.title}>Swipe</Text>
         <Pressable onPress={() => router.push("/preferences")} hitSlop={10}>
           <Ionicons name="options-outline" size={24} color={colors.text} />
         </Pressable>
@@ -54,10 +82,11 @@ export default function Discover() {
 
       <View style={styles.deck}>
         {queue.length === 0 ? (
-          <EmptyState
-            emoji="🔍"
+          <RadarPulse
+            photo={avatarOf(currentUser)}
+            searching={loading}
             title="No profiles yet"
-            message="There's no one to show right now. Check back later or adjust your preferences."
+            message={error ?? "There's no one nearby right now. Check back later or adjust your preferences."}
           />
         ) : (
           <>
@@ -102,7 +131,7 @@ export default function Discover() {
 
       <MatchModal
         match={lastMatch}
-        mePhoto={currentUser.photos[0]}
+        mePhoto={avatarOf(currentUser)}
         onMessage={() => {
           const id = lastMatch?.id;
           clearLastMatch();

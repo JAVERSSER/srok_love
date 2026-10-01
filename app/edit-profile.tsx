@@ -14,6 +14,7 @@ import { ScreenHeader } from "@/components/ScreenHeader";
 import { InterestTag } from "@/components/InterestTag";
 import { AvatarPicker, pickAvatarImage } from "@/components/AvatarPicker";
 import { PrimaryButton } from "@/components/ui";
+import { normalizeTelegram, normalizeFacebook } from "@/models";
 import { colors } from "@/constants/colors";
 import { spacing, font, radius } from "@/constants/spacing";
 import { provinces, interestOptions, relationshipGoals } from "@/constants/provinces";
@@ -21,7 +22,9 @@ import { provinces, interestOptions, relationshipGoals } from "@/constants/provi
 export default function EditProfile() {
   const router = useRouter();
   const user = useAppStore((s) => s.currentUser);
-  const update = useAppStore((s) => s.updateCurrentUser);
+  const saveProfile = useAppStore((s) => s.saveProfile);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const [name, setName] = useState(user.name);
   const [bio, setBio] = useState(user.bio);
@@ -30,12 +33,18 @@ export default function EditProfile() {
   const [education, setEducation] = useState(user.education ?? "");
   const [goal, setGoal] = useState(user.relationshipGoal ?? relationshipGoals[0]);
   const [interests, setInterests] = useState<string[]>(user.interests);
+  const [telegram, setTelegram] = useState(user.telegram ?? "");
+  const [facebook, setFacebook] = useState(user.facebook ?? "");
 
   const toggle = (i: string) =>
     setInterests((prev) => (prev.includes(i) ? prev.filter((x) => x !== i) : [...prev, i]));
 
-  const save = () => {
-    update({
+  const save = async () => {
+    if (saving) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await saveProfile({
       name: name.trim() || user.name,
       bio: bio.trim(),
       location: province,
@@ -43,8 +52,15 @@ export default function EditProfile() {
       education,
       relationshipGoal: goal,
       interests,
-    });
-    router.back();
+      telegram: normalizeTelegram(telegram) || undefined,
+      facebook: normalizeFacebook(facebook) || undefined,
+      });
+      router.back();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't save your profile. Please try again.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -83,7 +99,36 @@ export default function EditProfile() {
           ))}
         </View>
 
-        <PrimaryButton label="Save Changes" onPress={save} style={{ marginTop: spacing.xl }} />
+        <Label text="Telegram (optional)" />
+        <TextInput
+          style={styles.input}
+          value={telegram}
+          onChangeText={setTelegram}
+          placeholder="@username"
+          placeholderTextColor={colors.textTertiary}
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+
+        <Label text="Facebook (optional)" />
+        <TextInput
+          style={styles.input}
+          value={facebook}
+          onChangeText={setFacebook}
+          placeholder="facebook.com/username"
+          placeholderTextColor={colors.textTertiary}
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+        <Text style={styles.note}>Only people you match with can see these.</Text>
+
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+        <PrimaryButton
+          label={saving ? "Saving…" : "Save Changes"}
+          onPress={save}
+          disabled={saving}
+          style={{ marginTop: spacing.xl }}
+        />
         <View style={{ height: spacing.xxl }} />
       </ScrollView>
     </SafeAreaView>
@@ -91,9 +136,8 @@ export default function EditProfile() {
 }
 
 function PhotoManager() {
-  const photos = useAppStore((s) => s.myPhotos);
+  const avatar = useAppStore((s) => s.currentUser.avatar);
   const setProfilePhoto = useAppStore((s) => s.setProfilePhoto);
-  const removeProfilePhoto = useAppStore((s) => s.removeProfilePhoto);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -114,15 +158,8 @@ function PhotoManager() {
     if (image) run(() => setProfilePhoto(image));
   };
 
-  return (
-    <AvatarPicker
-      uri={photos[0]?.url}
-      onPick={pick}
-      onRemove={() => run(removeProfilePhoto)}
-      busy={busy}
-      error={error}
-    />
-  );
+  // No remove action: the backend can replace the avatar but not delete it.
+  return <AvatarPicker uri={avatar} onPick={pick} busy={busy} error={error} />;
 }
 
 function Label({ text }: { text: string }) {
@@ -187,4 +224,6 @@ const styles = StyleSheet.create({
   chipText: { color: colors.textSecondary, fontWeight: "600", fontSize: font.small },
   chipTextActive: { color: colors.primaryDark },
   interests: { flexDirection: "row", flexWrap: "wrap" },
+  note: { fontSize: font.small, color: colors.textTertiary, marginTop: spacing.sm },
+  error: { color: colors.danger, fontSize: font.small, marginTop: spacing.lg },
 });

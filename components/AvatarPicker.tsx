@@ -2,6 +2,7 @@ import React from "react";
 import { View, Text, StyleSheet, Pressable, ActivityIndicator } from "react-native";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
+import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 import { Ionicons } from "@expo/vector-icons";
 import { colors } from "@/constants/colors";
 import { spacing, font, shadow } from "@/constants/spacing";
@@ -10,16 +11,51 @@ import type { LocalImage } from "@/services/api";
 const SIZE = 132;
 const RING = 4;
 
-/** Opens the photo library with a square crop. Resolves to null if cancelled. */
-export async function pickAvatarImage(): Promise<LocalImage | null> {
+// Uploaded photos are shrunk to this many pixels square and saved as JPEG at
+// this quality: sharp enough for a full-width card, and usually 50–150 KB
+// (well under Vercel's 4.5 MB request limit on web).
+const UPLOAD_PX = 720;
+const UPLOAD_QUALITY = 0.7;
+
+/** Opens the photo library with a crop (square by default). Resolves to null if cancelled. */
+export async function pickAvatarImage(aspect: [number, number] = [1, 1]): Promise<LocalImage | null> {
   const result = await ImagePicker.launchImageLibraryAsync({
     mediaTypes: ["images"],
     allowsEditing: true,
-    aspect: [1, 1],
-    quality: 0.8,
+    aspect,
+    quality: 1, // compressed once, below
   });
   const asset = !result.canceled ? result.assets[0] : undefined;
-  return asset ? { uri: asset.uri, mimeType: asset.mimeType, fileName: asset.fileName } : null;
+  return asset ? shrink(asset) : null;
+}
+
+/**
+ * Opens the photo library to pick up to `limit` photos at once. The system
+ * picker can't crop when selecting several, so they're only resized.
+ * Resolves to [] if cancelled.
+ */
+export async function pickPhotos(limit: number): Promise<LocalImage[]> {
+  if (limit <= 0) return [];
+  const result = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: ["images"],
+    allowsMultipleSelection: true,
+    selectionLimit: limit,
+    orderedSelection: true,
+    quality: 1, // compressed once, below
+  });
+  if (result.canceled) return [];
+  return Promise.all(result.assets.slice(0, limit).map(shrink));
+}
+
+async function shrink(asset: ImagePicker.ImagePickerAsset): Promise<LocalImage> {
+  // Scale by the longer side so the photo fits in UPLOAD_PX either way.
+  const resize =
+    asset.width >= asset.height
+      ? { width: Math.min(asset.width || UPLOAD_PX, UPLOAD_PX) }
+      : { height: Math.min(asset.height || UPLOAD_PX, UPLOAD_PX) };
+  const rendered = await ImageManipulator.manipulate(asset.uri).resize(resize).renderAsync();
+  const small = await rendered.saveAsync({ compress: UPLOAD_QUALITY, format: SaveFormat.JPEG });
+  return { uri: small.uri, mimeType: "image/jpeg", fileName: "photo.jpg" };
 }
 
 interface Props {

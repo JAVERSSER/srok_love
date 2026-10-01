@@ -44,6 +44,7 @@ export const KEYS = {
   tokens: "tokens",
   myPhotos: "myPhotos",
   currentUser: "currentUser",
+  users: "users",
   likes: "likes",
   passes: "passes",
   matches: "matches",

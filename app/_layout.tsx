@@ -191,6 +191,8 @@ export default function RootLayout() {
               <Stack.Screen name="profile/[id]" options={{ presentation: "card" }} />
               <Stack.Screen name="chat/[id]" />
               <Stack.Screen name="edit-profile" options={{ presentation: "modal" }} />
+              <Stack.Screen name="my-photos" />
+              <Stack.Screen name="settings" />
               <Stack.Screen name="preferences" />
               <Stack.Screen name="notifications" />
               <Stack.Screen name="privacy" />

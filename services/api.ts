@@ -1,13 +1,14 @@
 import { Platform } from "react-native";
 import { API_BASE_URL, API_ORIGIN, endpoints } from "@/constants/api";
 import { storage, KEYS } from "@/services/storage";
+import type { Conversation, Gender, Match, Message, UserProfile } from "@/models";
 
 // HTTP client for the Django backend.
 //
-// The backend sets `access_token` / `refresh_token` cookies on login, and may
-// also return the tokens in the JSON body. We support both: every request is
-// sent with cookies (`credentials: "include"`) and, when we have an access
-// token from the body, an `Authorization: Bearer` header too.
+// The backend authenticates with the `access_token` / `refresh_token` cookies
+// it sets on login, so every request is sent with cookies
+// (`credentials: "include"`). If it ever returns tokens in the JSON body too,
+// we also send an `Authorization: Bearer` header.
 
 const TIMEOUT_MS = 20000;
 
@@ -244,7 +245,108 @@ export async function register({ username, email, phoneNumber, password, dateOfB
   return login(username, password);
 }
 
-// --- photos -----------------------------------------------------------------
+// --- shared helpers ---------------------------------------------------------
+
+/** Makes media URLs from the API loadable by the app (absolute, HTTPS, and proxied on web). */
+export function resolveMediaUrl(url: string | null | undefined): string {
+  if (!url) return "";
+  if (url.startsWith(API_ORIGIN)) return API_BASE_URL + url.slice(API_ORIGIN.length);
+  if (url.startsWith("/")) return API_BASE_URL + url;
+  // Cloudinary returns http:// links, which HTTPS pages would block.
+  if (url.startsWith("http://res.cloudinary.com/")) return "https://" + url.slice("http://".length);
+  return url;
+}
+
+/** Normalizes Django timestamps ("2026-10-01 15:47:50.396578+00:00") to ISO strings. */
+export function toIso(value: unknown): string {
+  if (typeof value !== "string" || !value) return new Date().toISOString();
+  const d = new Date(value.replace(" ", "T").replace(/(\.\d{3})\d+/, "$1"));
+  return isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
+}
+
+/** Age in whole years from a YYYY-MM-DD date of birth, or 0 if unknown. */
+export function ageFromDob(dob: unknown): number {
+  const m = typeof dob === "string" ? /^(\d{4})-(\d{2})-(\d{2})/.exec(dob) : null;
+  if (!m) return 0;
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const now = new Date();
+  return now.getFullYear() - y - (now.getMonth() + 1 < mo || (now.getMonth() + 1 === mo && now.getDate() < d) ? 1 : 0);
+}
+
+function toGender(value: unknown): Gender | undefined {
+  return value === "male" || value === "female" ? value : undefined;
+}
+
+// --- my profile -------------------------------------------------------------
+
+export interface MyProfile {
+  username: string;
+  name: string;
+  gender?: Gender;
+  age: number;
+  interests: string[];
+  avatarUrl: string;
+  photos: RemotePhoto[];
+  telegram?: string;
+  facebook?: string;
+}
+
+export async function getProfile(): Promise<MyProfile> {
+  const d = await request<Json>(endpoints.profile);
+  return {
+    username: d.username ?? "",
+    name: d.name ?? "",
+    gender: toGender(d.gender),
+    age: ageFromDob(d.date_of_birth),
+    interests: Array.isArray(d.interests) ? d.interests : [],
+    avatarUrl: resolveMediaUrl(d.avatar_url),
+    photos: Array.isArray(d.photos) ? d.photos.map(toPhoto) : [],
+    telegram: d.telegram || undefined,
+    facebook: d.facebook || undefined,
+  };
+}
+
+export interface ProfileUpdate {
+  name?: string;
+  bio?: string;
+  gender?: Gender;
+  interests?: string[];
+  telegram?: string;
+  facebook?: string;
+}
+
+export async function updateProfile(patch: ProfileUpdate): Promise<void> {
+  await request(endpoints.updateProfile, { method: "POST", body: patch });
+}
+
+export async function updateLocation(latitude: number, longitude: number): Promise<void> {
+  await request(endpoints.updateLocation, { method: "POST", body: { latitude, longitude } });
+}
+
+export interface SecuritySettings {
+  singleDevicePolicy: boolean;
+  policyMessage: string;
+  currentDevice: { deviceName: string; ipAddress: string; lastActive: string } | null;
+  lastLogin: { deviceName: string; ipAddress: string; time: string } | null;
+}
+
+export async function getSecuritySettings(): Promise<SecuritySettings> {
+  const d = await request<Json>(endpoints.securitySettings);
+  const cur = d.current_device;
+  const last = d.last_login;
+  return {
+    singleDevicePolicy: !!d.single_device_policy,
+    policyMessage: d.policy_message ?? "",
+    currentDevice: cur
+      ? { deviceName: cur.device_name ?? "", ipAddress: cur.ip_address ?? "", lastActive: toIso(cur.last_active) }
+      : null,
+    lastLogin: last
+      ? { deviceName: last.device_name ?? "", ipAddress: last.ip_address ?? "", time: toIso(last.time) }
+      : null,
+  };
+}
+
+// --- media ------------------------------------------------------------------
 
 export interface RemotePhoto {
   id: number;
@@ -252,17 +354,16 @@ export interface RemotePhoto {
   order?: number;
 }
 
-/** Makes media URLs from the API loadable by the app (absolute, and proxied on web). */
-export function resolveMediaUrl(url: string): string {
-  if (!url) return url;
-  if (url.startsWith(API_ORIGIN)) return API_BASE_URL + url.slice(API_ORIGIN.length);
-  if (url.startsWith("/")) return API_BASE_URL + url;
-  return url;
+// Upload responses use { photo_id, image }; the profile's photo list uses
+// { id, image_url, order }.
+function toPhoto(data: Json): RemotePhoto {
+  const raw = data.image_url ?? data.image ?? data.url ?? "";
+  return { id: Number(data.photo_id ?? data.id), url: resolveMediaUrl(String(raw)), order: data.order };
 }
 
-function toPhoto(data: Json): RemotePhoto {
-  const raw = data.image ?? data.image_url ?? data.url ?? data.file ?? data.photo ?? "";
-  return { id: Number(data.id), url: resolveMediaUrl(String(raw)), order: data.order };
+/** Profile photos in display order. */
+export function sortPhotos(photos: RemotePhoto[]): RemotePhoto[] {
+  return [...photos].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 }
 
 export interface LocalImage {
@@ -271,19 +372,29 @@ export interface LocalImage {
   fileName?: string | null;
 }
 
-export async function uploadPhoto(image: LocalImage): Promise<RemotePhoto> {
+async function imageForm(field: string, image: LocalImage): Promise<FormData> {
   const type = image.mimeType ?? "image/jpeg";
   const name = image.fileName ?? `photo.${type.split("/")[1] ?? "jpg"}`;
   const form = new FormData();
   if (Platform.OS === "web") {
     // On web the picker gives a blob:/data: URI; FormData needs the Blob itself.
     const blob = await (await fetch(image.uri)).blob();
-    form.append("image", blob, name);
+    form.append(field, blob, name);
   } else {
-    form.append("image", { uri: image.uri, name, type } as unknown as Blob);
+    form.append(field, { uri: image.uri, name, type } as unknown as Blob);
   }
-  const data = await request<Json>(endpoints.photos, { form, method: "POST" });
-  return toPhoto(data?.data ?? data);
+  return form;
+}
+
+/** Sets the avatar other people see in Discover, Matches and Chats. Returns its URL. */
+export async function uploadAvatar(image: LocalImage): Promise<string> {
+  const data = await request<Json>(endpoints.avatar, { form: await imageForm("avatar", image), method: "POST" });
+  return resolveMediaUrl(data?.avatar_url);
+}
+
+export async function uploadPhoto(image: LocalImage): Promise<RemotePhoto> {
+  const data = await request<Json>(endpoints.photos, { form: await imageForm("image", image), method: "POST" });
+  return toPhoto(data);
 }
 
 /** Sets which uploaded photos are on the profile, in display order. */
@@ -291,4 +402,111 @@ export async function assignPhotos(photoIds: number[]): Promise<void> {
   await request(endpoints.assignPhotos, {
     body: { photos: photoIds.map((id, order) => ({ id, order })) },
   });
+}
+
+// --- discover & matches -----------------------------------------------------
+
+/** Turns any user-shaped object from the API (discover, matches, chats) into a UserProfile. */
+export function toUserProfile(d: Json): UserProfile {
+  const avatar = resolveMediaUrl(d.avatar_url ?? d.avatar);
+  // The gallery, when the endpoint sends it; the avatar is kept separately.
+  const photos = Array.isArray(d.photos) ? sortPhotos(d.photos.map(toPhoto)).map((p) => p.url).filter(Boolean) : [];
+  const distance = d.distance_km != null ? Number(d.distance_km) : NaN;
+  return {
+    id: String(d.user_id ?? d.id),
+    username: d.username ?? undefined,
+    name: d.name || d.username || "",
+    age: d.age != null ? Number(d.age) : ageFromDob(d.date_of_birth),
+    gender: toGender(d.gender),
+    location: d.city ?? "",
+    bio: d.bio ?? "",
+    avatar: avatar || undefined,
+    photos,
+    interests: Array.isArray(d.interests) ? d.interests : [],
+    telegram: d.telegram || undefined,
+    facebook: d.facebook || undefined,
+    distanceKm: isNaN(distance) ? undefined : distance,
+  };
+}
+
+/** People near the user's last reported location (includes people already swiped). */
+export async function discover(): Promise<UserProfile[]> {
+  const data = await request<Json[] | Json>(endpoints.discover);
+  return Array.isArray(data) ? data.map(toUserProfile) : [];
+}
+
+export type SwipeAction = "like" | "pass";
+
+export async function swipe(userId: string, action: SwipeAction): Promise<void> {
+  await request(endpoints.swipe, { body: { user_id: Number(userId), action } });
+}
+
+export interface MatchedEntry {
+  match: Match;
+  user: UserProfile;
+}
+
+export async function getMatches(): Promise<MatchedEntry[]> {
+  const data = await request<Json[]>(endpoints.matched);
+  if (!Array.isArray(data)) return [];
+  return data.map((d) => ({
+    match: {
+      id: String(d.match_id ?? d.id),
+      userId: "me",
+      matchedUserId: String(d.user_id),
+      roomId: d.room_id != null ? Number(d.room_id) : undefined,
+      compatibility: d.compatibility_score != null ? Number(d.compatibility_score) : undefined,
+      createdAt: toIso(d.created_at),
+    },
+    user: toUserProfile(d),
+  }));
+}
+
+// --- chats ------------------------------------------------------------------
+
+export interface ChatEntry {
+  conversation: Conversation;
+  user: UserProfile;
+}
+
+export async function getChats(): Promise<ChatEntry[]> {
+  const data = await request<Json[]>(endpoints.chatList);
+  if (!Array.isArray(data)) return [];
+  return data.map((d) => ({
+    conversation: {
+      roomId: Number(d.room_id),
+      otherUserId: String(d.user_id),
+      lastMessage: d.last_message ?? undefined,
+      lastActivity: d.last_message_time ? toIso(d.last_message_time) : undefined,
+      unread: Number(d.unread_count ?? 0),
+    },
+    user: toUserProfile(d),
+  }));
+}
+
+/**
+ * Converts a message from the REST history ({ id, sender_id, content,
+ * timestamp, is_read }) or the WebSocket ({ message, sender_id, timestamp })
+ * into a Message. Our own messages get senderId "me".
+ */
+export function toMessage(d: Json, roomId: number, myId: string | null): Message {
+  const sender = String(d.sender_id ?? d.sender ?? "");
+  const createdAt = toIso(d.timestamp ?? d.created_at);
+  return {
+    id: d.id != null ? String(d.id) : `ws_${sender}_${createdAt}`,
+    conversationId: String(roomId),
+    senderId: myId && sender === myId ? "me" : sender,
+    text: String(d.content ?? d.message ?? ""),
+    createdAt,
+    read: typeof d.is_read === "boolean" ? d.is_read : undefined,
+  };
+}
+
+export async function getMessages(roomId: number, myId: string | null): Promise<Message[]> {
+  const data = await request<Json[]>(endpoints.chatMessages(roomId));
+  return Array.isArray(data) ? data.map((d) => toMessage(d, roomId, myId)) : [];
+}
+
+export async function markRead(roomId: number): Promise<void> {
+  await request(endpoints.chatRead(roomId), { method: "POST" });
 }

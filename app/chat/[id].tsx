@@ -15,16 +15,21 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useAppStore } from "@/store/appStore";
+import { sockets } from "@/constants/api";
+import { openSocket, LiveSocket, SocketStatus } from "@/services/socket";
 import { ProfilePhoto } from "@/components/ProfilePhoto";
 import { MessageBubble, BubblePosition } from "@/components/MessageBubble";
 import type { Message, UserProfile } from "@/models";
 import { colors } from "@/constants/colors";
 import { spacing, font, radius } from "@/constants/spacing";
+import { avatarOf } from "@/models";
 
 // Messages from the same sender closer together than this are grouped.
 const GROUP_GAP_MS = 5 * 60 * 1000;
 // Messages younger than this animate in (i.e. ones that just arrived).
 const FRESH_MS = 2000;
+// Without a socket (HTTPS web build), check for new messages this often.
+const POLL_MS = 5000;
 
 // Desktop browsers: Enter sends, Shift+Enter adds a line. On phones Enter
 // stays a newline, like other chat apps.
@@ -91,7 +96,7 @@ function buildRows(convo: Message[]): Row[] {
       message: m,
       position,
       showTime: !below,
-      sent: m.senderId === "me" && i === convo.length - 1,
+      sent: m.senderId === "me" && !m.pending && i === convo.length - 1,
     });
   });
   return rows;
@@ -103,7 +108,8 @@ function buildIcebreakers(user: UserProfile): string[] {
   if (user.interests[0]) {
     ideas.push(`I see you're into ${user.interests[0]} — how did you get started?`);
   }
-  ideas.push(`What's your favourite place to hang out in ${user.city ?? user.location}?`);
+  const place = user.city || user.location;
+  ideas.push(place ? `What's your favourite place to hang out in ${place}?` : "What do you like to do on weekends?");
   return ideas;
 }
 
@@ -111,12 +117,50 @@ export default function Chat() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const getUserById = useAppStore((s) => s.getUserById);
-  const sendMessage = useAppStore((s) => s.sendMessage);
   const allMessages = useAppStore((s) => s.messages);
-  const privacy = useAppStore((s) => s.privacy);
+  const roomId = useAppStore((s) => s.getRoomId(id));
 
   const user = getUserById(id);
   const [text, setText] = useState("");
+  const [status, setStatus] = useState<SocketStatus>("connecting");
+  const [error, setError] = useState<string | null>(null);
+  const socketRef = useRef<LiveSocket | null>(null);
+
+  // Opened straight after a match, the room may not be known yet.
+  useEffect(() => {
+    if (roomId == null) useAppStore.getState().refreshMatches().catch(() => {});
+  }, [roomId]);
+
+  // Load the history, then follow new messages over the room's socket.
+  useEffect(() => {
+    if (roomId == null) return;
+    const { loadMessages, receiveMessage, markRoomRead } = useAppStore.getState();
+    const markRead = () => markRoomRead(roomId).catch(() => {});
+    loadMessages(roomId)
+      .then(markRead)
+      .catch((e) => setError(e instanceof Error ? e.message : "Couldn't load messages."));
+
+    let poll: ReturnType<typeof setInterval> | undefined;
+    const socket = openSocket(
+      sockets.chat(roomId),
+      (data) => {
+        receiveMessage(roomId, data);
+        markRead();
+      },
+      (next) => {
+        setStatus(next);
+        if (next === "unavailable" && !poll) {
+          poll = setInterval(() => loadMessages(roomId).then(markRead).catch(() => {}), POLL_MS);
+        }
+      }
+    );
+    socketRef.current = socket;
+    return () => {
+      socket.close();
+      socketRef.current = null;
+      clearInterval(poll);
+    };
+  }, [roomId]);
   const listRef = useRef<FlatList>(null);
   const inputRef = useRef<TextInput>(null);
 
@@ -154,9 +198,9 @@ export default function Chat() {
   const convo = useMemo(
     () =>
       allMessages
-        .filter((m) => m.conversationId === `conv_${id}`)
+        .filter((m) => m.conversationId === String(roomId))
         .sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
-    [allMessages, id]
+    [allMessages, roomId]
   );
 
   // The list is inverted (newest at offset 0), so "bottom of the chat" is the
@@ -195,8 +239,17 @@ export default function Chat() {
 
   const send = () => {
     const trimmed = text.trim();
-    if (!trimmed) return;
-    sendMessage(user.id, trimmed);
+    if (!trimmed || roomId == null) return;
+    if (!socketRef.current?.send({ message: trimmed })) {
+      setError(
+        status === "unavailable"
+          ? "Sending messages isn't available in this browser version yet. Use the app instead."
+          : "Not connected. Check your connection and try again."
+      );
+      return;
+    }
+    setError(null);
+    useAppStore.getState().addPendingMessage(roomId, trimmed);
     setText("");
     // Tapping the send button steals focus from the input, which closes the
     // keyboard. Refocusing within the same tap keeps it open so the user can
@@ -218,7 +271,15 @@ export default function Chat() {
     focusInput();
   };
 
-  const canSend = text.trim().length > 0;
+  const canSend = text.trim().length > 0 && roomId != null && status !== "unavailable";
+  const statusText =
+    roomId == null || status === "connecting"
+      ? "Connecting…"
+      : status === "closed"
+        ? "Reconnecting…"
+        : status === "unavailable"
+          ? "Read only in the browser"
+          : null;
 
   return (
     <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
@@ -226,10 +287,10 @@ export default function Chat() {
         <Pressable onPress={() => router.back()} hitSlop={10}>
           <Ionicons name="chevron-back" size={26} color={colors.text} />
         </Pressable>
-        <ProfilePhoto uri={user.photos[0]} size={38} />
+        <ProfilePhoto uri={avatarOf(user)} size={38} />
         <View style={{ flex: 1 }}>
           <Text style={styles.name}>{user.name}</Text>
-          {privacy.showOnlineStatus && <Text style={styles.online}>Online</Text>}
+          {statusText ? <Text style={styles.status}>{statusText}</Text> : null}
         </View>
         <Pressable onPress={() => router.push(`/profile/${user.id}`)} hitSlop={10}>
           <Ionicons name="information-circle-outline" size={24} color={colors.textSecondary} />
@@ -248,7 +309,7 @@ export default function Chat() {
         keyboardShouldPersistTaps="handled"
         ListEmptyComponent={
           <View style={styles.empty}>
-            <ProfilePhoto uri={user.photos[0]} size={72} />
+            <ProfilePhoto uri={avatarOf(user)} size={72} />
             <Text style={styles.emptyTitle}>You matched with {user.name}!</Text>
             <Text style={styles.emptyText}>Not sure what to say? Tap one to start.</Text>
             <View style={styles.ideas}>
@@ -272,6 +333,7 @@ export default function Chat() {
         keyboardVerticalOffset={90}
       >
         <View style={styles.inputBar}>
+          {error ? <Text style={styles.error}>{error}</Text> : null}
           <View style={styles.composer}>
             <TextInput
               ref={inputRef}
@@ -313,7 +375,8 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.divider,
   },
   name: { fontSize: font.title, fontWeight: "700", color: colors.text },
-  online: { fontSize: font.small, color: colors.success },
+  status: { fontSize: font.small, color: colors.textTertiary },
+  error: { fontSize: font.small, color: colors.danger, marginBottom: spacing.sm },
   messages: { padding: spacing.lg, flexGrow: 1 },
   day: {
     alignSelf: "center",

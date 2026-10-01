@@ -6,9 +6,11 @@ import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { useAppStore } from "@/store/appStore";
 import { EmptyState } from "@/components/EmptyState";
+import { nameAndAge, locationLabel } from "@/components/ProfileCard";
 import { colors } from "@/constants/colors";
 import { spacing, font, radius, shadow } from "@/constants/spacing";
 import { useTabBarSpace } from "@/components/GlassTabBar";
+import { galleryOf } from "@/models";
 
 export default function Likes() {
   const tabBarSpace = useTabBarSpace();
@@ -29,7 +31,7 @@ export default function Likes() {
         <EmptyState
           emoji="❤️"
           title="No likes yet"
-          message="Start discovering people to find someone special."
+          message="Start swiping to find someone special."
         />
       </SafeAreaView>
     );
@@ -52,12 +54,10 @@ export default function Likes() {
               style={styles.card}
               onPress={() => router.push(`/profile/${u.id}`)}
             >
-              <Image source={{ uri: u.photos[0] }} style={styles.photo} contentFit="cover" />
+              <Image source={{ uri: galleryOf(u)[0] }} style={styles.photo} contentFit="cover" />
               <View style={styles.overlay}>
-                <Text style={styles.name}>
-                  {u.name}, {u.age}
-                </Text>
-                <Text style={styles.loc}>{u.location}</Text>
+                <Text style={styles.name}>{nameAndAge(u)}</Text>
+                {!!locationLabel(u) && <Text style={styles.loc}>{locationLabel(u)}</Text>}
               </View>
               <View style={styles.badge}>
                 <Ionicons

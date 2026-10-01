@@ -29,7 +29,7 @@ import { Gender } from "@/models";
 
 export default function CreateProfile() {
   const router = useRouter();
-  const updateCurrentUser = useAppStore((s) => s.updateCurrentUser);
+  const saveProfile = useAppStore((s) => s.saveProfile);
   const skipAuth = useAppStore((s) => s.skipAuth);
   const setOnboarded = useAppStore((s) => s.setOnboarded);
   const uploadPendingPhoto = useAppStore((s) => s.uploadPendingPhoto);
@@ -68,7 +68,7 @@ export default function CreateProfile() {
 
   const save = async () => {
     if (!valid || !gender || !lookingFor || saving) return;
-    updateCurrentUser({
+    const profile = {
       name: name.trim(),
       age: Number(age),
       gender,
@@ -79,15 +79,25 @@ export default function CreateProfile() {
       education,
       relationshipGoal: goal,
       interests,
-    });
+    };
     if (AUTH_DISABLED) {
+      await saveProfile(profile);
       skipAuth();
       router.replace("/(tabs)/discover");
       return;
     }
     // The account was created on the previous screen, so we're logged in
-    // and can upload the photo now.
+    // and can save the profile and upload the photo now.
     setSaving(true);
+    try {
+      await saveProfile(profile);
+    } catch (e) {
+      setSaving(false);
+      const msg = e instanceof Error ? e.message : "Couldn't save your profile. Please try again.";
+      if (Platform.OS === "web") window.alert(msg);
+      else Alert.alert("Profile not saved", msg);
+      return;
+    }
     try {
       await uploadPendingPhoto();
     } catch {
@@ -189,7 +199,7 @@ export default function CreateProfile() {
         </View>
 
         <PrimaryButton
-          label={saving ? "Saving…" : "Start Discovering"}
+          label={saving ? "Saving…" : "Start Swiping"}
           onPress={save}
           disabled={!valid || saving}
           style={{ marginTop: spacing.xl }}

@@ -57,7 +57,7 @@ export default function Login() {
             style={styles.back}
           />
           <Text style={styles.header}>Welcome back 👋</Text>
-          <Text style={styles.sub}>Log in to keep discovering.</Text>
+          <Text style={styles.sub}>Log in to keep swiping.</Text>
 
           <TextField
             label="Username or email"

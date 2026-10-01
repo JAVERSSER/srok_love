@@ -16,7 +16,7 @@ export default function Preferences() {
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
-      <ScreenHeader title="Discovery Preferences" />
+      <ScreenHeader title="Swipe Preferences" />
       <ScrollView contentContainerStyle={{ paddingBottom: spacing.xxl }}>
         <SectionTitle>Show me</SectionTitle>
         <View style={styles.rowWrap}>

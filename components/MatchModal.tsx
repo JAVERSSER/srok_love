@@ -1,7 +1,7 @@
 import React, { useEffect } from "react";
 import { View, Text, StyleSheet, Modal, Pressable } from "react-native";
 import { ProfilePhoto } from "./ProfilePhoto";
-import { UserProfile } from "@/models";
+import { UserProfile, avatarOf } from "@/models";
 import { colors } from "@/constants/colors";
 import { radius, spacing, font } from "@/constants/spacing";
 import Animated, {
@@ -50,7 +50,7 @@ export function MatchModal({ match, mePhoto, onMessage, onKeepDiscovering }: Pro
           <View style={styles.photos}>
             <ProfilePhoto uri={mePhoto} size={92} style={styles.leftPhoto} />
             <ProfilePhoto
-              uri={match?.photos[0] ?? ""}
+              uri={avatarOf(match)}
               size={92}
               style={styles.rightPhoto}
             />
@@ -60,7 +60,7 @@ export function MatchModal({ match, mePhoto, onMessage, onKeepDiscovering }: Pro
             <Text style={styles.primaryText}>Send Message</Text>
           </Pressable>
           <Pressable style={styles.secondaryBtn} onPress={onKeepDiscovering}>
-            <Text style={styles.secondaryText}>Keep Discovering</Text>
+            <Text style={styles.secondaryText}>Keep Swiping</Text>
           </Pressable>
         </Animated.View>
       </View>

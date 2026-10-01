@@ -11,7 +11,7 @@ const { width } = Dimensions.get("window");
 const steps = [
   {
     emoji: "🧭",
-    title: "Discover people around you",
+    title: "Swipe on people around you",
     text: "Browse profiles of people near you across Cambodia.",
   },
   {

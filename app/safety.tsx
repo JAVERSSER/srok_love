@@ -9,6 +9,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { SectionTitle } from "@/components/ui";
 import { colors } from "@/constants/colors";
 import { spacing, font, radius } from "@/constants/spacing";
+import { avatarOf } from "@/models";
 
 export default function Safety() {
   const blocked = useAppStore((s) => s.blocked);
@@ -33,7 +34,7 @@ export default function Safety() {
         <EmptyState
           emoji="🛡️"
           title="No blocked users"
-          message="Anyone you block will appear here and be hidden from Discover and Matches."
+          message="Anyone you block will appear here and be hidden from Swipe and Matches."
         />
       ) : (
         <FlatList
@@ -42,7 +43,7 @@ export default function Safety() {
           contentContainerStyle={{ paddingHorizontal: spacing.lg }}
           renderItem={({ item }) => (
             <View style={styles.row}>
-              <ProfilePhoto uri={item.photos[0]} size={44} />
+              <ProfilePhoto uri={avatarOf(item)} size={44} />
               <Text style={styles.name}>{item.name}</Text>
               <Ionicons name="ban" size={20} color={colors.danger} />
             </View>

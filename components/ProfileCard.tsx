@@ -11,11 +11,23 @@ import Animated, {
   interpolate,
   Extrapolation,
 } from "react-native-reanimated";
-import { UserProfile } from "@/models";
+import { UserProfile, galleryOf } from "@/models";
 import { colors } from "@/constants/colors";
 import { radius, spacing, font, shadow, layout } from "@/constants/spacing";
 
 export type SwipeDir = "left" | "right" | "up";
+
+/** "Name, 24", or just the name when the age isn't known. */
+export function nameAndAge(user: UserProfile): string {
+  return user.age > 0 ? `${user.name}, ${user.age}` : user.name;
+}
+
+/** The user's city, or how far away they are. */
+export function locationLabel(user: UserProfile): string {
+  if (user.location) return user.location;
+  if (user.distanceKm == null) return "";
+  return user.distanceKm < 1 ? "Less than 1 km away" : `${Math.round(user.distanceKm)} km away`;
+}
 
 interface Props {
   user: UserProfile;
@@ -118,7 +130,7 @@ export function ProfileCard({ user, onSwipe, onTap, isTop }: Props) {
       >
         <Pressable style={StyleSheet.absoluteFill} onPress={onTap}>
           <Image
-            source={{ uri: user.photos[0] }}
+            source={{ uri: galleryOf(user)[0] }}
             style={styles.photo}
             contentFit="cover"
             transition={200}
@@ -137,20 +149,22 @@ export function ProfileCard({ user, onSwipe, onTap, isTop }: Props) {
 
           <View style={styles.info}>
             <View style={styles.nameRow}>
-              <Text style={styles.name}>
-                {user.name}, {user.age}
-              </Text>
+              <Text style={styles.name}>{nameAndAge(user)}</Text>
               {user.verified && (
                 <Ionicons name="checkmark-circle" size={20} color={colors.superLike} />
               )}
             </View>
-            <View style={styles.locRow}>
-              <Ionicons name="location-sharp" size={14} color={colors.white} />
-              <Text style={styles.location}>{user.location}</Text>
-            </View>
-            <Text style={styles.bio} numberOfLines={2}>
-              &ldquo;{user.bio}&rdquo;
-            </Text>
+            {!!locationLabel(user) && (
+              <View style={styles.locRow}>
+                <Ionicons name="location-sharp" size={14} color={colors.white} />
+                <Text style={styles.location}>{locationLabel(user)}</Text>
+              </View>
+            )}
+            {!!user.bio && (
+              <Text style={styles.bio} numberOfLines={2}>
+                &ldquo;{user.bio}&rdquo;
+              </Text>
+            )}
           </View>
         </Pressable>
       </Animated.View>
