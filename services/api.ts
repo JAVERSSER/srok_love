@@ -219,9 +219,17 @@ export async function login(loginId: string, password: string): Promise<AuthUser
   return startSession(data, loginId.trim());
 }
 
-export async function register(username: string, password: string): Promise<AuthUser> {
+export interface RegisterInput {
+  username: string;
+  email: string;
+  password: string;
+  /** YYYY-MM-DD */
+  dateOfBirth: string;
+}
+
+export async function register({ username, email, password, dateOfBirth }: RegisterInput): Promise<AuthUser> {
   await request(endpoints.register, {
-    body: { username: username.trim(), password },
+    body: { username: username.trim(), email: email.trim(), password, date_of_birth: dateOfBirth.trim() },
     auth: false,
   });
   // Log in right away so we get a session whether or not register returns one.

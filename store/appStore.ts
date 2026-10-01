@@ -66,7 +66,7 @@ interface AppState {
   hydrate: () => Promise<void>;
   setOnboarded: (v: boolean) => void;
   // Both throw api.ApiError with a user-facing message on failure.
-  register: (username: string, password: string) => Promise<void>;
+  register: (input: api.RegisterInput) => Promise<void>;
   login: (loginId: string, password: string) => Promise<void>;
   logout: () => void;
   // Only used while AUTH_DISABLED: enters the app without an account.
@@ -202,8 +202,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     persist(get());
   },
 
-  register: async (username, password) => {
-    const user = await api.register(username, password);
+  register: async (input) => {
+    const user = await api.register(input);
     set({
       account: { username: user.username, userId: user.id, createdAt: new Date().toISOString() },
       loggedIn: true,

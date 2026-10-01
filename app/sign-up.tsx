@@ -13,7 +13,12 @@ import { useAppStore } from "@/store/appStore";
 import { colors } from "@/constants/colors";
 import { spacing, font } from "@/constants/spacing";
 import { PrimaryButton, GhostButton, TextField } from "@/components/ui";
-import { validatePassword, validateUsername } from "@/services/auth";
+import {
+  validateDateOfBirth,
+  validateEmail,
+  validatePassword,
+  validateUsername,
+} from "@/services/auth";
 
 export default function SignUp() {
   const router = useRouter();
@@ -21,6 +26,8 @@ export default function SignUp() {
   const uploadPendingPhoto = useAppStore((s) => s.uploadPendingPhoto);
 
   const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
+  const [dateOfBirth, setDateOfBirth] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   // Only show errors after the user has tried to submit, so they aren't
@@ -30,6 +37,8 @@ export default function SignUp() {
   const [serverError, setServerError] = useState<string | null>(null);
 
   const usernameError = validateUsername(username);
+  const emailError = validateEmail(email);
+  const dobError = validateDateOfBirth(dateOfBirth);
   const passwordError = validatePassword(password);
   const confirmError =
     confirm.length === 0
@@ -37,7 +46,7 @@ export default function SignUp() {
       : confirm !== password
         ? "Passwords do not match."
         : null;
-  const valid = !usernameError && !passwordError && !confirmError;
+  const valid = !usernameError && !emailError && !dobError && !passwordError && !confirmError;
 
   const submit = async () => {
     setSubmitted(true);
@@ -45,7 +54,7 @@ export default function SignUp() {
     setLoading(true);
     setServerError(null);
     try {
-      await register(username, password);
+      await register({ username, email, password, dateOfBirth });
       try {
         await uploadPendingPhoto();
       } catch {
@@ -76,7 +85,7 @@ export default function SignUp() {
           />
           <Text style={styles.header}>Create your account</Text>
           <Text style={styles.sub}>
-            Almost there! Pick a username and password to log in with.
+            Almost there! Fill in your details to create your account.
           </Text>
 
           <TextField
@@ -87,6 +96,26 @@ export default function SignUp() {
             textContentType="username"
             autoComplete="username"
             error={submitted ? usernameError : null}
+          />
+          <TextField
+            label="Email"
+            value={email}
+            onChangeText={setEmail}
+            placeholder="you@example.com"
+            keyboardType="email-address"
+            textContentType="emailAddress"
+            autoComplete="email"
+            error={submitted ? emailError : null}
+          />
+          <TextField
+            label="Date of birth"
+            value={dateOfBirth}
+            onChangeText={setDateOfBirth}
+            placeholder="YYYY-MM-DD"
+            keyboardType="numbers-and-punctuation"
+            autoComplete="birthdate-full"
+            maxLength={10}
+            error={submitted ? dobError : null}
           />
           <TextField
             label="Password"
