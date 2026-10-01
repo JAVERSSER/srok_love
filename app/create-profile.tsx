@@ -33,14 +33,14 @@ export default function CreateProfile() {
   const setPhoto = useAppStore((s) => s.setPendingPhoto);
 
   const [name, setName] = useState("");
-  const [age, setAge] = useState("25");
-  const [gender, setGender] = useState<Gender>("female");
-  const [lookingFor, setLookingFor] = useState<(typeof lookingForOptions)[number]>("Everyone");
-  const [province, setProvince] = useState("Phnom Penh");
+  const [age, setAge] = useState("");
+  const [gender, setGender] = useState<Gender | null>(null);
+  const [lookingFor, setLookingFor] = useState<(typeof lookingForOptions)[number] | null>(null);
+  const [province, setProvince] = useState("");
   const [bio, setBio] = useState("");
   const [occupation, setOccupation] = useState("");
   const [education, setEducation] = useState("");
-  const [goal, setGoal] = useState(relationshipGoals[0]);
+  const [goal, setGoal] = useState("");
   const [interests, setInterests] = useState<string[]>([]);
 
   const toggleInterest = (i: string) =>
@@ -53,9 +53,16 @@ export default function CreateProfile() {
     if (image) setPhoto(image);
   };
 
-  const valid = name.trim().length > 1 && Number(age) >= 18;
+  const valid =
+    name.trim().length > 1 &&
+    Number(age) >= 18 &&
+    !!gender &&
+    !!lookingFor &&
+    !!province &&
+    !!goal;
 
   const save = () => {
+    if (!valid || !gender || !lookingFor) return;
     updateCurrentUser({
       name: name.trim(),
       age: Number(age),
@@ -107,14 +114,14 @@ export default function CreateProfile() {
         <Label text="Gender" />
         <Chips
           options={genderOptions.map((g) => (g === "male" ? "Male" : "Female"))}
-          value={gender === "male" ? "Male" : "Female"}
+          value={gender === "male" ? "Male" : gender === "female" ? "Female" : ""}
           onSelect={(v) => setGender(v === "Male" ? "male" : "female")}
         />
 
         <Label text="Looking for" />
         <Chips
           options={[...lookingForOptions]}
-          value={lookingFor}
+          value={lookingFor ?? ""}
           onSelect={(v) => setLookingFor(v as typeof lookingFor)}
         />
 
