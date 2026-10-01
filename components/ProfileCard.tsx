@@ -35,11 +35,24 @@ export function ProfileCard({ user, onSwipe, onTap, isTop }: Props) {
 
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
+  const cardHeight = useSharedValue(0);
+  // Like a real card held in the hand: grabbing the top half tilts it one way,
+  // grabbing the bottom half tilts it the opposite way.
+  const tiltSign = useSharedValue(1);
+  // Grab point relative to the card's center; the card rotates around it so
+  // the spot under the finger stays under the finger.
+  const pivotX = useSharedValue(0);
+  const pivotY = useSharedValue(0);
 
   const trigger = (dir: SwipeDir) => onSwipe(dir);
 
   const pan = Gesture.Pan()
     .enabled(isTop)
+    .onBegin((e) => {
+      tiltSign.value = e.y > cardHeight.value / 2 ? -1 : 1;
+      pivotX.value = e.x - width / 2;
+      pivotY.value = e.y - cardHeight.value / 2;
+    })
     .onUpdate((e) => {
       translateX.value = e.translationX;
       translateY.value = e.translationY;
@@ -68,14 +81,18 @@ export function ProfileCard({ user, onSwipe, onTap, isTop }: Props) {
     const rotate = interpolate(
       translateX.value,
       [-width / 2, 0, width / 2],
-      [-8, 0, 8],
+      [-12, 0, 12],
       Extrapolation.CLAMP
     );
     return {
       transform: [
         { translateX: translateX.value },
         { translateY: translateY.value },
-        { rotateZ: `${rotate}deg` },
+        { translateX: pivotX.value },
+        { translateY: pivotY.value },
+        { rotateZ: `${rotate * tiltSign.value}deg` },
+        { translateX: -pivotX.value },
+        { translateY: -pivotY.value },
       ],
     };
   });
@@ -94,7 +111,10 @@ export function ProfileCard({ user, onSwipe, onTap, isTop }: Props) {
     <GestureDetector gesture={pan}>
       <Animated.View
         style={[styles.card, cardStyle]}
-        onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
+        onLayout={(e) => {
+          setWidth(e.nativeEvent.layout.width);
+          cardHeight.value = e.nativeEvent.layout.height;
+        }}
       >
         <Pressable style={StyleSheet.absoluteFill} onPress={onTap}>
           <Image
