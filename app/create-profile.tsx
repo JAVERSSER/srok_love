@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Image } from "expo-image";
+import { Ionicons } from "@expo/vector-icons";
 import { useAppStore } from "@/store/appStore";
 import { AUTH_DISABLED } from "@/constants/api";
 import { colors } from "@/constants/colors";
@@ -39,7 +39,7 @@ export default function CreateProfile() {
   const [occupation, setOccupation] = useState("");
   const [education, setEducation] = useState("");
   const [goal, setGoal] = useState(relationshipGoals[0]);
-  const [interests, setInterests] = useState<string[]>(["Coffee", "Travel"]);
+  const [interests, setInterests] = useState<string[]>([]);
 
   const toggleInterest = (i: string) =>
     setInterests((prev) =>
@@ -55,12 +55,11 @@ export default function CreateProfile() {
       gender,
       lookingFor,
       location: province,
-      bio: bio.trim() || "Hi there!",
+      bio: bio.trim(),
       occupation,
       education,
       relationshipGoal: goal,
       interests,
-      photos: [`https://picsum.photos/seed/${name || "me"}/600/800`],
     });
     if (AUTH_DISABLED) {
       skipAuth();
@@ -78,12 +77,10 @@ export default function CreateProfile() {
         <Text style={styles.sub}>Tell us a little about yourself.</Text>
 
         <View style={styles.photoRow}>
-          <Image
-            source={{ uri: `https://picsum.photos/seed/${name || "me"}/300/300` }}
-            style={styles.photo}
-            contentFit="cover"
-          />
-          <Text style={styles.photoHint}>A demo photo is generated from your name.</Text>
+          <View style={[styles.photo, styles.photoEmpty]}>
+            <Ionicons name="person" size={36} color={colors.textTertiary} />
+          </View>
+          <Text style={styles.photoHint}>Add your photos from Edit Profile after signing up.</Text>
         </View>
 
         <Label text="Full name" />
@@ -217,6 +214,7 @@ const styles = StyleSheet.create({
   sub: { fontSize: font.body, color: colors.textSecondary, marginTop: 4, marginBottom: spacing.lg },
   photoRow: { alignItems: "center", marginBottom: spacing.lg },
   photo: { width: 110, height: 110, borderRadius: 55, backgroundColor: colors.surfaceAlt },
+  photoEmpty: { alignItems: "center", justifyContent: "center" },
   photoHint: { fontSize: font.small, color: colors.textTertiary, marginTop: spacing.sm },
   label: {
     fontSize: font.small,

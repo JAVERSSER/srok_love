@@ -37,6 +37,7 @@ export const storage = {
 };
 
 export const KEYS = {
+  dataVersion: "dataVersion",
   onboarded: "onboarded",
   loggedIn: "loggedIn",
   account: "account",

@@ -56,8 +56,8 @@ export default function Discover() {
         {queue.length === 0 ? (
           <EmptyState
             emoji="🔍"
-            title="No more profiles"
-            message="You've seen everyone for now. Adjust your preferences or check back later."
+            title="No profiles yet"
+            message="There's no one to show right now. Check back later or adjust your preferences."
           />
         ) : (
           <>

@@ -1,7 +1,6 @@
 import { create } from "zustand";
 import { storage, KEYS } from "@/services/storage";
-import { mockUsers } from "@/data/users";
-import { defaultCurrentUser, seedNotifications } from "@/data/seed";
+import { defaultCurrentUser } from "@/data/seed";
 import * as api from "@/services/api";
 import { AUTH_DISABLED } from "@/constants/api";
 import {
@@ -35,10 +34,10 @@ const defaultPrivacy: Privacy = {
   allowMatchMessages: true,
 };
 
-// Simulate mutual interest: a subset of mock users will "like back".
-const MUTUAL_LIKERS = new Set([
-  "u1", "u3", "u5", "u7", "u10", "u13", "u17", "u2",
-]);
+// Bump to wipe everything saved on the device the next time the app starts.
+// 2: drops all data saved by the demo builds (fake profiles, matches, chats,
+// notifications and placeholder photos), including the login session.
+const DATA_VERSION = 2;
 
 interface AppState {
   hydrated: boolean;
@@ -118,12 +117,13 @@ export const useAppStore = create<AppState>((set, get) => ({
   myPhotos: [],
 
   currentUser: defaultCurrentUser,
-  users: mockUsers,
+  // No profile-discovery API on the backend yet, so there are no other users.
+  users: [],
   likes: [],
   passes: [],
   matches: [],
   messages: [],
-  notifications: seedNotifications,
+  notifications: [],
   preference: defaultPreference,
   privacy: defaultPrivacy,
   blocked: [],
@@ -132,6 +132,12 @@ export const useAppStore = create<AppState>((set, get) => ({
   lastMatch: null,
 
   hydrate: async () => {
+    if ((await storage.get<number>(KEYS.dataVersion)) !== DATA_VERSION) {
+      await storage.clearAll();
+      await api.clearTokens();
+      await storage.set(KEYS.dataVersion, DATA_VERSION);
+    }
+
     const [
       onboarded,
       loggedIn,
@@ -179,7 +185,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       preference: preference ?? defaultPreference,
       privacy: privacy ?? defaultPrivacy,
       blocked: blocked ?? [],
-      notifications: notifications ?? seedNotifications,
+      notifications: notifications ?? [],
     });
   },
 
@@ -234,9 +240,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       myPhotos,
       currentUser: {
         ...s.currentUser,
-        photos: myPhotos.length
-          ? myPhotos.map((p) => p.url)
-          : [`https://picsum.photos/seed/${s.currentUser.name || "me"}/600/800`],
+        photos: myPhotos.map((p) => p.url),
       },
     }));
     persist(get());
@@ -261,38 +265,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     };
     const likes = alreadyLiked ? state.likes : [...state.likes, newLike];
 
-    const willMatch =
-      MUTUAL_LIKERS.has(targetId) &&
-      !state.matches.some((m) => m.matchedUserId === targetId);
-
-    let matches = state.matches;
-    let lastMatch = state.lastMatch;
-    let notifications = state.notifications;
-
-    if (willMatch) {
-      const match: Match = {
-        id: `match_${Date.now()}_${targetId}`,
-        userId: "me",
-        matchedUserId: targetId,
-        createdAt: new Date().toISOString(),
-      };
-      matches = [...matches, match];
-      lastMatch = state.users.find((u) => u.id === targetId) ?? null;
-      notifications = [
-        {
-          id: `n_${Date.now()}`,
-          type: "match",
-          text: `You matched with ${lastMatch?.name ?? "someone"}!`,
-          createdAt: new Date().toISOString(),
-          read: false,
-        },
-        ...notifications,
-      ];
-    }
-
-    set({ likes, matches, lastMatch, notifications });
+    // A match needs the other person to like back, which needs a backend
+    // endpoint that doesn't exist yet, so a like never matches here.
+    set({ likes });
     persist(get());
-    return willMatch;
+    return false;
   },
 
   passUser: (targetId) => {
@@ -317,19 +294,6 @@ export const useAppStore = create<AppState>((set, get) => ({
     // Only messages changed; persisting everything (photos included) on every
     // send blocks the UI thread and makes the chat feel laggy.
     storage.set(KEYS.messages, get().messages);
-
-    // Simulate a reply after a short delay (demo only).
-    setTimeout(() => {
-      const reply: Message = {
-        id: `msg_${Date.now()}_r`,
-        conversationId,
-        senderId: otherUserId,
-        text: pickReply(),
-        createdAt: new Date().toISOString(),
-      };
-      set((s) => ({ messages: [...s.messages, reply] }));
-      storage.set(KEYS.messages, get().messages);
-    }, 1400);
   },
 
   getConversation: (otherUserId) => {
@@ -412,19 +376,6 @@ export const useAppStore = create<AppState>((set, get) => ({
     });
   },
 }));
-
-const replies = [
-  "Hi! 👋 How are you?",
-  "Nice to meet you 😊",
-  "Haha that's great!",
-  "What do you like to do on weekends?",
-  "I love that too!",
-  "Where in Cambodia are you from?",
-  "Sounds good to me 🙌",
-];
-function pickReply(): string {
-  return replies[Math.floor(Math.random() * replies.length)];
-}
 
 // If the refresh token expires, drop back to the welcome/login flow.
 api.setOnSessionExpired(() => {

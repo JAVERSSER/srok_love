@@ -26,10 +26,17 @@ export default function Profile() {
     <SafeAreaView style={styles.container} edges={["top"]}>
       <ScrollView contentContainerStyle={{ paddingBottom: tabBarSpace + spacing.lg }}>
         <View style={styles.hero}>
-          <Image source={{ uri: user.photos[0] }} style={styles.avatar} contentFit="cover" />
+          {user.photos[0] ? (
+            <Image source={{ uri: user.photos[0] }} style={styles.avatar} contentFit="cover" />
+          ) : (
+            <View style={[styles.avatar, styles.avatarEmpty]}>
+              <Ionicons name="person" size={48} color={colors.textTertiary} />
+            </View>
+          )}
           <View style={styles.nameRow}>
             <Text style={styles.name}>
-              {user.name}, {user.age}
+              {user.name || "Your profile"}
+              {user.age > 0 ? `, ${user.age}` : ""}
             </Text>
             {user.verified && (
               <Ionicons name="checkmark-circle" size={20} color={colors.superLike} />
@@ -98,6 +105,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceAlt,
     ...shadow.soft,
   },
+  avatarEmpty: { alignItems: "center", justifyContent: "center" },
   nameRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: spacing.md },
   name: { fontSize: font.h2, fontWeight: "800", color: colors.text },
   loc: { fontSize: font.body, color: colors.textSecondary, marginTop: 2 },

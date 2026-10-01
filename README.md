@@ -2,7 +2,8 @@
 
 A Cambodia-focused dating app demo built with **React Native + TypeScript + Expo + Expo Router**.
 Accounts and profile photos use the Django backend (`http://139.59.249.224:8000` by default);
-discovery, matches and chat are still mock data persisted locally with AsyncStorage.
+discovery, matches and chat have no backend endpoints yet, so Discover is empty until
+they're added. There is no mock or demo data in the app.
 
 ## Backend
 
@@ -35,17 +36,11 @@ or press `i` for iOS simulator / `a` for Android emulator.
 - **Discover** with swipeable cards (right = like, left = pass, up = super like)
   built on Reanimated + Gesture Handler, with rotation + LIKE/PASS/SUPER indicators
 - Tap a card → full **profile detail** with photo carousel, report & block
-- **Likes** grid, **Matches** list, **Messages** list, real **chat** with auto-replies (demo)
+- **Likes** grid, **Matches** list, **Messages** list, **chat**
 - Match modal animation when there's a mutual like
 - **Profile** tab + Edit Profile, Discovery Preferences, Notifications, Privacy, Safety
 - Report reasons + block confirmation (removes from Discover & Matches)
 - Local persistence via AsyncStorage — state survives app restart
-- 22 fictional Cambodian profiles (no real people)
-
-## Testing the match flow
-
-A subset of demo profiles "like you back" (Sreyneang, Sokha, Rachana, Chansopheak,
-Kosal, Chenda, Nita, Dara). Like one of them to trigger the match animation, then chat.
 
 ## Structure
 
@@ -53,10 +48,10 @@ Kosal, Chenda, Nita, Dara). Like one of them to trigger the match animation, the
 app/          screens & routes (expo-router)
 components/    reusable UI (ProfileCard, MatchModal, etc.)
 constants/     colors, spacing, provinces
-data/          mock users + seed data
+data/          empty starting profile for a new account
 models/        TypeScript interfaces
 services/      API client, AsyncStorage wrapper
-store/         Zustand store (all business logic — swap mock data for API later)
+store/         Zustand store (all business logic)
 ```
 
 ## Making it production-ready later
