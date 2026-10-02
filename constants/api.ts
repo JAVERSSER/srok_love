@@ -2,7 +2,7 @@ import { Platform } from "react-native";
 
 // The Django backend on the VPS. Override with EXPO_PUBLIC_API_URL in a
 // `.env` file (e.g. to point at a local server while developing).
-export const API_ORIGIN = process.env.EXPO_PUBLIC_API_URL ?? "http://139.59.249.224:8000";
+export const API_ORIGIN = process.env.EXPO_PUBLIC_API_URL ?? "http://139.59.249.224";
 
 // On web we always call our own origin and let a proxy forward /api and
 // /media to the VPS: vercel.json in production, metro.config.js in dev. The

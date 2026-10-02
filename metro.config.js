@@ -12,7 +12,7 @@ config.resolver.unstable_enablePackageExports = false;
 // backend's auth cookies are SameSite=Lax, so a page on localhost calling the
 // backend directly never gets them sent back. Proxying /api and /media
 // through Metro makes them first-party localhost cookies.
-const BACKEND = process.env.BACKEND_ORIGIN || 'http://139.59.249.224:8000';
+const BACKEND = process.env.BACKEND_ORIGIN || 'http://139.59.249.224';
 const DROP_REQUEST = ['host', 'connection', 'content-length', 'accept-encoding', 'origin', 'referer'];
 const DROP_RESPONSE = ['content-encoding', 'content-length', 'transfer-encoding', 'connection', 'set-cookie'];
 

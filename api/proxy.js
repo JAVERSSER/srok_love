@@ -5,7 +5,7 @@
 // and /media/* here with the original path in `__path`, and we forward the
 // request (method, headers, body, cookies) and stream the response back.
 
-const BACKEND = process.env.BACKEND_ORIGIN || "http://139.59.249.224:8000";
+const BACKEND = process.env.BACKEND_ORIGIN || "http://139.59.249.224";
 
 // Hop-by-hop headers, plus ones fetch recomputes or that would break once
 // Node's fetch has already decompressed the body.

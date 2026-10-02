@@ -1,7 +1,7 @@
 # SrokLove 💗
 
 A Cambodia-focused dating app demo built with **React Native + TypeScript + Expo + Expo Router**.
-Accounts and profile photos use the Django backend (`http://139.59.249.224:8000` by default);
+Accounts and profile photos use the Django backend (`http://139.59.249.224` by default);
 discovery, matches and chat have no backend endpoints yet, so Discover is empty until
 they're added. There is no mock or demo data in the app.
 
