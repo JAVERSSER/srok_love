@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, StyleSheet, FlatList, Pressable } from "react-native";
+import { View, Text, StyleSheet, FlatList, Pressable, Platform, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useAppStore } from "@/store/appStore";
@@ -14,10 +14,24 @@ import { avatarOf } from "@/models";
 export default function Safety() {
   const blocked = useAppStore((s) => s.blocked);
   const getUserById = useAppStore((s) => s.getUserById);
+  const unblockUser = useAppStore((s) => s.unblockUser);
 
-  const blockedUsers = blocked
-    .map((b) => getUserById(b.userId))
-    .filter((u): u is NonNullable<typeof u> => !!u);
+  // Fall back to what was saved at block time if they're no longer loaded.
+  const blockedUsers = blocked.map((b) => {
+    const u = getUserById(b.userId);
+    return { id: b.userId, name: u?.name || b.name || "Unknown user", avatar: u ? avatarOf(u) : b.avatar };
+  });
+
+  const confirmUnblock = (id: string, name: string) => {
+    if (Platform.OS === "web") {
+      if (window.confirm(`Unblock ${name}?`)) unblockUser(id);
+      return;
+    }
+    Alert.alert(`Unblock ${name}?`, "They can show up in Swipe and Matches again.", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Unblock", onPress: () => unblockUser(id) },
+    ]);
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -43,9 +57,14 @@ export default function Safety() {
           contentContainerStyle={{ paddingHorizontal: spacing.lg }}
           renderItem={({ item }) => (
             <View style={styles.row}>
-              <ProfilePhoto uri={avatarOf(item)} size={44} />
+              <ProfilePhoto uri={item.avatar ?? ""} size={44} />
               <Text style={styles.name}>{item.name}</Text>
-              <Ionicons name="ban" size={20} color={colors.danger} />
+              <Pressable
+                onPress={() => confirmUnblock(item.id, item.name)}
+                style={({ pressed }) => [styles.unblock, pressed && { opacity: 0.6 }]}
+              >
+                <Text style={styles.unblockText}>Unblock</Text>
+              </Pressable>
             </View>
           )}
         />
@@ -83,4 +102,12 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.divider,
   },
   name: { flex: 1, fontSize: font.body, fontWeight: "600", color: colors.text },
+  unblock: {
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  unblockText: { fontSize: font.small, fontWeight: "700", color: colors.primary },
 });

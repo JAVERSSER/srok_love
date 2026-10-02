@@ -3,7 +3,7 @@ import { storage, KEYS } from "@/services/storage";
 import { defaultCurrentUser } from "@/data/seed";
 import * as api from "@/services/api";
 import { AUTH_DISABLED } from "@/constants/api";
-import type { Coords } from "@/services/location";
+import { getCurrentCoords, type Coords } from "@/services/location";
 import {
   Account,
   Conversation,
@@ -24,7 +24,7 @@ const defaultPreference: Preference = {
   interestedIn: "Everyone",
   ageMin: 18,
   ageMax: 35,
-  distanceKm: 50,
+  distanceKm: 5,
   province: "Phnom Penh",
 };
 
@@ -45,6 +45,9 @@ interface AppState {
   hydrated: boolean;
   onboarded: boolean;
   loggedIn: boolean;
+  // Why the server ended the session (e.g. the account logged in on another
+  // device), shown on the welcome screen. Memory only.
+  signedOutReason: string | null;
   account: Account | null;
   myPhotos: ProfilePhoto[];
   // Profile photo picked while creating a profile, before there's an account
@@ -80,6 +83,10 @@ interface AppState {
   register: (input: api.RegisterInput) => Promise<void>;
   login: (loginId: string, password: string) => Promise<void>;
   logout: () => void;
+  // Asks the server whether this device's session is still valid. If another
+  // device has logged in since, the API logs this one out. Never throws.
+  checkSession: () => Promise<void>;
+  clearSignedOutReason: () => void;
   // Only used while AUTH_DISABLED: enters the app without an account.
   skipAuth: () => void;
 
@@ -126,6 +133,7 @@ interface AppState {
   setPrivacy: (patch: Partial<Privacy>) => void;
 
   blockUser: (targetId: string) => void;
+  unblockUser: (targetId: string) => void;
   reportUser: (targetId: string, reason: ReportReason) => void;
 
   markNotificationsRead: () => void;
@@ -200,6 +208,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   hydrated: false,
   onboarded: false,
   loggedIn: false,
+  signedOutReason: null,
   account: null,
   myPhotos: [],
   pendingPhoto: null,
@@ -292,7 +301,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       account: { username: user.username, userId: user.id, createdAt: new Date().toISOString() },
       loggedIn: true,
       // A fresh account starts with a blank profile and no history.
-      currentUser: defaultCurrentUser,
+      currentUser: { ...defaultCurrentUser, dateOfBirth: input.dateOfBirth, age: api.ageFromDob(input.dateOfBirth) },
       myPhotos: [],
       users: [],
       discoverIds: [],
@@ -310,6 +319,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const user = await api.login(loginId, password);
     const sameAccount = get().account?.username === user.username;
     set({
+      signedOutReason: null,
       account: { username: user.username, userId: user.id, createdAt: new Date().toISOString() },
       loggedIn: true,
       onboarded: true,
@@ -340,6 +350,13 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ loggedIn: false, lastMatch: null, messages: [], conversations: [] });
     persist(get());
   },
+
+  checkSession: async () => {
+    if (!get().loggedIn || AUTH_DISABLED) return;
+    await api.checkSession();
+  },
+
+  clearSignedOutReason: () => set({ signedOutReason: null }),
 
   skipAuth: () => {
     set({ loggedIn: true, onboarded: true });
@@ -421,6 +438,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         ...s.currentUser,
         name: p.name || s.currentUser.name,
         age: p.age || s.currentUser.age,
+        dateOfBirth: p.dateOfBirth ?? s.currentUser.dateOfBirth,
         gender: p.gender ?? s.currentUser.gender,
         interests: p.interests.length ? p.interests : s.currentUser.interests,
         telegram: p.telegram ?? s.currentUser.telegram,
@@ -435,9 +453,12 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   refreshDiscover: async () => {
     // Discover only returns people once the server has a location for us, so
-    // send the phone's position every time; a failure surfaces on the
-    // Discover screen.
-    const coords = get().deviceCoords;
+    // read the phone's position again (the user may have moved since the app
+    // opened) and send it every time; a failure surfaces on the Discover
+    // screen.
+    const fresh = await getCurrentCoords();
+    if (fresh) set({ deviceCoords: fresh });
+    const coords = fresh ?? get().deviceCoords;
     if (coords) await api.updateLocation(coords.latitude, coords.longitude);
     const found = await api.discover();
     set((s) => ({
@@ -629,10 +650,18 @@ export const useAppStore = create<AppState>((set, get) => ({
             {
               id: `block_${Date.now()}`,
               userId: targetId,
+              // Kept so Safety can list them even if they drop out of `users`.
+              name: s.users.find((u) => u.id === targetId)?.name,
+              avatar: s.users.find((u) => u.id === targetId)?.avatar,
               createdAt: new Date().toISOString(),
             },
           ],
     }));
+    persist(get());
+  },
+
+  unblockUser: (targetId) => {
+    set((s) => ({ blocked: s.blocked.filter((b) => b.userId !== targetId) }));
     persist(get());
   },
 
@@ -688,8 +717,16 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 }));
 
-// If the refresh token expires, drop back to the welcome/login flow.
+// If the server rejects the session (an account can only be logged in on one
+// device, so logging in elsewhere ends this one, as does the refresh token
+// expiring), drop back to the welcome/login flow and say why.
 api.setOnSessionExpired(() => {
   if (AUTH_DISABLED) return;
-  if (useAppStore.getState().loggedIn) useAppStore.getState().logout();
+  const { loggedIn, logout } = useAppStore.getState();
+  if (!loggedIn) return;
+  logout();
+  useAppStore.setState({
+    signedOutReason:
+      "You've been logged out because your account was logged in on another device. Log in again to continue here.",
+  });
 });

@@ -6,6 +6,7 @@ import {
   ScrollView,
   Pressable,
   Alert,
+  Platform,
   Linking,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -42,6 +43,7 @@ export default function ProfileDetail() {
   // "/profile/me" previews your own profile exactly as other people see it.
   const isPreview = id === "me";
   const me = useAppStore((s) => s.currentUser);
+  const privacy = useAppStore((s) => s.privacy);
   const user = isPreview ? me : getUserById(id);
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
 
@@ -64,6 +66,15 @@ export default function ProfileDetail() {
   };
 
   const confirmBlock = () => {
+    const doBlock = () => {
+      blockUser(user.id);
+      router.back();
+    };
+    // Alert.alert's buttons don't show on web.
+    if (Platform.OS === "web") {
+      if (window.confirm(`Block ${user.name}? They will be removed from Swipe and Matches.`)) doBlock();
+      return;
+    }
     Alert.alert(
       "Block " + user.name + "?",
       "They will be removed from Swipe and Matches, and you won't be able to message each other.",
@@ -72,16 +83,24 @@ export default function ProfileDetail() {
         {
           text: "Block",
           style: "destructive",
-          onPress: () => {
-            blockUser(user.id);
-            router.back();
-          },
+          onPress: doBlock,
         },
       ]
     );
   };
 
   const openReport = () => {
+    if (Platform.OS === "web") {
+      const choice = window.prompt(
+        `Why are you reporting ${user.name}? Enter a number:\n` +
+          reportReasons.map((r, i) => `${i + 1}. ${r}`).join("\n")
+      );
+      const reason = reportReasons[Number(choice) - 1];
+      if (!reason) return;
+      reportUser(user.id, reason);
+      window.alert("Thank you. Your report has been submitted.");
+      return;
+    }
     Alert.alert("Report " + user.name, "Why are you reporting this profile?", [
       ...reportReasons.map((r) => ({
         text: r,
@@ -144,6 +163,10 @@ export default function ProfileDetail() {
     ),
   ].filter(Boolean);
 
+  // Your own preview follows your privacy switches, like other people would see it.
+  const nameLine = isPreview && !privacy.showAge ? user.name : nameAndAge(user);
+  const locLine = isPreview && !privacy.showDistance ? "" : locationLabel(user);
+
   const photos = galleryOf(user);
   const extraPhotos = photos.slice(1).map((uri, i) => (
     <Pressable
@@ -187,12 +210,12 @@ export default function ProfileDetail() {
 
         <View style={styles.body}>
           <View style={styles.nameRow}>
-            <Text style={styles.name}>{nameAndAge(user)}</Text>
+            <Text style={styles.name}>{nameLine}</Text>
             {user.verified && (
               <Ionicons name="checkmark-circle" size={22} color={colors.superLike} />
             )}
           </View>
-          {!!locationLabel(user) && <Text style={styles.loc}>📍 {locationLabel(user)}</Text>}
+          {!!locLine && <Text style={styles.loc}>📍 {locLine}</Text>}
 
           {interleave(sections, extraPhotos)}
 

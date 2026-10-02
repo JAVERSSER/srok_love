@@ -24,8 +24,22 @@ export function validatePhoneNumber(phone: string): string | null {
 }
 
 // Formats raw input as DD/MM/YYYY while the user types, inserting the slashes.
+// Digits that would make the day exceed 31 or the month exceed 12 are dropped,
+// and a leading digit that can only be a single-digit day/month gets a 0 prefix
+// (typing "5" for the month gives "05").
 export function formatDateOfBirthInput(text: string): string {
-  const digits = text.replace(/\D/g, "").slice(0, 8);
+  let digits = "";
+  for (const ch of text.replace(/\D/g, "")) {
+    if (digits.length >= 8) break;
+    const pos = digits.length;
+    if (pos === 0 && ch > "3") digits += "0" + ch;
+    else if (pos === 2 && ch > "1") digits += "0" + ch;
+    else if (pos === 1 || pos === 3) {
+      const n = Number(digits[pos - 1] + ch);
+      if (n === 0 || n > (pos === 1 ? 31 : 12)) continue;
+      digits += ch;
+    } else digits += ch;
+  }
   if (digits.length <= 2) return digits;
   if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
   return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;

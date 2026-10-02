@@ -40,6 +40,7 @@ export interface UserProfile {
   username?: string;
   name: string;
   age: number; // 0 when unknown (the discover API doesn't return it)
+  dateOfBirth?: string; // YYYY-MM-DD; when set, age is calculated from it
   gender?: Gender;
   lookingFor?: "Men" | "Women" | "Everyone";
   location: string; // province
@@ -141,6 +142,8 @@ export interface Report {
 export interface BlockedUser {
   id: string;
   userId: string;
+  name?: string;
+  avatar?: string;
   createdAt: string;
 }
 

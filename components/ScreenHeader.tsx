@@ -9,7 +9,12 @@ export function ScreenHeader({ title, right }: { title: string; right?: React.Re
   const router = useRouter();
   return (
     <View style={styles.header}>
-      <Pressable onPress={() => router.back()} hitSlop={10} style={styles.back}>
+      <Pressable
+        // A page opened directly (e.g. refreshed on web) has no history to go back to.
+        onPress={() => (router.canGoBack() ? router.back() : router.replace("/(tabs)/profile"))}
+        hitSlop={10}
+        style={styles.back}
+      >
         <Ionicons name="chevron-back" size={26} color={colors.text} />
       </Pressable>
       <Text style={styles.title}>{title}</Text>

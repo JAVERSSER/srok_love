@@ -13,6 +13,7 @@ export default function Welcome() {
   const onboarded = useAppStore((s) => s.onboarded);
   const loggedIn = useAppStore((s) => s.loggedIn);
   const skipAuth = useAppStore((s) => s.skipAuth);
+  const signedOutReason = useAppStore((s) => s.signedOutReason);
 
   // Logged in with a profile: go straight to the app. Registered but no
   // profile yet (e.g. the app was closed mid sign-up): finish the profile.
@@ -43,6 +44,12 @@ export default function Welcome() {
           <Text style={styles.tagline}>Meet someone special in Cambodia.</Text>
           <Text style={styles.khmer}>ស្វែងរកនរណាម្នាក់ពិសេសនៅកម្ពុជា</Text>
         </View>
+
+        {signedOutReason ? (
+          <View style={styles.notice}>
+            <Text style={styles.noticeText}>{signedOutReason}</Text>
+          </View>
+        ) : null}
 
         <View style={styles.actions}>
           <PrimaryButton label="Get Started" onPress={getStarted} />
@@ -85,5 +92,12 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
     textAlign: "center",
   },
+  notice: {
+    backgroundColor: "rgba(0,0,0,0.25)",
+    borderRadius: 14,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  noticeText: { color: colors.white, fontSize: font.small, textAlign: "center", lineHeight: 20 },
   actions: { gap: spacing.sm, paddingBottom: spacing.lg },
 });

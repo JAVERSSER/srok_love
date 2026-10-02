@@ -13,6 +13,7 @@ import { useTabBarSpace } from "@/components/GlassTabBar";
 import { pickAvatarImage } from "@/components/AvatarPicker";
 import { PhotoPreview } from "@/components/PhotoPreview";
 import { SupportSheet } from "@/components/SupportSheet";
+import { ageFromDob } from "@/services/api";
 
 export default function Profile() {
   const tabBarSpace = useTabBarSpace();
@@ -26,6 +27,8 @@ export default function Profile() {
   const [photoError, setPhotoError] = useState<string | null>(null);
   const [supportOpen, setSupportOpen] = useState(false);
   const photo = user.avatar;
+  // Worked out from the date of birth each render, so it goes up on the birthday.
+  const age = user.dateOfBirth ? ageFromDob(user.dateOfBirth) : user.age;
 
   const changePhoto = async () => {
     if (uploading) return;
@@ -96,7 +99,7 @@ export default function Profile() {
           <View style={styles.nameRow}>
             <Text style={styles.name}>
               {user.name || "Your profile"}
-              {user.age > 0 ? `, ${user.age}` : ""}
+              {age > 0 ? `, ${age}` : ""}
             </Text>
             {user.verified && (
               <Ionicons name="checkmark-circle" size={20} color={colors.superLike} />

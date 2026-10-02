@@ -12,6 +12,7 @@ import Animated, {
   Extrapolation,
 } from "react-native-reanimated";
 import { UserProfile, galleryOf } from "@/models";
+import { ageFromDob } from "@/services/api";
 import { colors } from "@/constants/colors";
 import { radius, spacing, font, shadow, layout } from "@/constants/spacing";
 
@@ -19,7 +20,8 @@ export type SwipeDir = "left" | "right" | "up";
 
 /** "Name, 24", or just the name when the age isn't known. */
 export function nameAndAge(user: UserProfile): string {
-  return user.age > 0 ? `${user.name}, ${user.age}` : user.name;
+  const age = user.dateOfBirth ? ageFromDob(user.dateOfBirth) : user.age;
+  return age > 0 ? `${user.name}, ${age}` : user.name;
 }
 
 /** The user's city, or how far away they are. */

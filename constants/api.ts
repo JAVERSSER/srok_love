@@ -16,6 +16,7 @@ export const endpoints = {
   login: "/api/accounts/auth/login/",
   refresh: "/api/accounts/auth/token/refresh/",
   register: "/api/accounts/auth/register/",
+  changePassword: "/api/accounts/auth/change-password/",
   profile: "/api/accounts/profile/",
   updateProfile: "/api/accounts/profile/update/",
   updateLocation: "/api/accounts/location/update/",

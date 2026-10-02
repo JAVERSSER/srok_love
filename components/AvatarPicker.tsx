@@ -12,10 +12,10 @@ const SIZE = 132;
 const RING = 4;
 
 // Uploaded photos are shrunk to this many pixels square and saved as JPEG at
-// this quality: sharp enough for a full-width card, and usually 50–150 KB
-// (well under Vercel's 4.5 MB request limit on web).
-const UPLOAD_PX = 720;
-const UPLOAD_QUALITY = 0.7;
+// this quality: sharp on a full-screen card on high-density phones, and
+// usually 200–500 KB (well under Vercel's 4.5 MB request limit on web).
+const UPLOAD_PX = 1440;
+const UPLOAD_QUALITY = 0.85;
 
 /** Opens the photo library with a crop (square by default). Resolves to null if cancelled. */
 export async function pickAvatarImage(aspect: [number, number] = [1, 1]): Promise<LocalImage | null> {

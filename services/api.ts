@@ -245,6 +245,25 @@ export async function register({ username, email, phoneNumber, password, dateOfB
   return login(username, password);
 }
 
+/** Sets a new password for the logged-in user; the old one isn't needed, so it works if they forgot it. */
+export async function changePassword(newPassword: string): Promise<void> {
+  // Change the key if the backend names this field differently.
+  await request(endpoints.changePassword, { method: "POST", body: { new_password: newPassword } });
+}
+
+/**
+ * Makes a cheap authenticated call so a revoked session is noticed even when
+ * the user isn't doing anything. A 401 the refresh can't fix triggers
+ * onSessionExpired via request(); other failures (offline etc.) are ignored.
+ */
+export async function checkSession(): Promise<void> {
+  try {
+    await request(endpoints.securitySettings);
+  } catch {
+    // Only a rejected session matters here, and request() already handled it.
+  }
+}
+
 // --- shared helpers ---------------------------------------------------------
 
 /** Makes media URLs from the API loadable by the app (absolute, HTTPS, and proxied on web). */
@@ -273,6 +292,14 @@ export function ageFromDob(dob: unknown): number {
   return now.getFullYear() - y - (now.getMonth() + 1 < mo || (now.getMonth() + 1 === mo && now.getDate() < d) ? 1 : 0);
 }
 
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** "14 May 2002" from a YYYY-MM-DD date of birth, or "" if unknown. */
+export function formatDob(dob: unknown): string {
+  const m = typeof dob === "string" ? /^(\d{4})-(\d{2})-(\d{2})/.exec(dob) : null;
+  return m ? `${Number(m[3])} ${MONTHS[Number(m[2]) - 1]} ${m[1]}` : "";
+}
+
 function toGender(value: unknown): Gender | undefined {
   return value === "male" || value === "female" ? value : undefined;
 }
@@ -284,6 +311,8 @@ export interface MyProfile {
   name: string;
   gender?: Gender;
   age: number;
+  /** YYYY-MM-DD */
+  dateOfBirth?: string;
   interests: string[];
   avatarUrl: string;
   photos: RemotePhoto[];
@@ -298,6 +327,7 @@ export async function getProfile(): Promise<MyProfile> {
     name: d.name ?? "",
     gender: toGender(d.gender),
     age: ageFromDob(d.date_of_birth),
+    dateOfBirth: typeof d.date_of_birth === "string" ? d.date_of_birth.slice(0, 10) : undefined,
     interests: Array.isArray(d.interests) ? d.interests : [],
     avatarUrl: resolveMediaUrl(d.avatar_url),
     photos: Array.isArray(d.photos) ? d.photos.map(toPhoto) : [],

@@ -6,7 +6,7 @@ import { ScreenHeader } from "@/components/ScreenHeader";
 import { SectionTitle } from "@/components/ui";
 import { colors } from "@/constants/colors";
 import { spacing, font, radius } from "@/constants/spacing";
-import { provinces, lookingForOptions } from "@/constants/provinces";
+import { lookingForOptions } from "@/constants/provinces";
 
 const distances = [5, 10, 25, 50, 100];
 
@@ -63,19 +63,9 @@ export default function Preferences() {
           ))}
         </View>
 
-        <SectionTitle>Location</SectionTitle>
-        <View style={styles.rowWrap}>
-          {provinces.map((p) => (
-            <Chip
-              key={p}
-              label={p}
-              active={pref.province === p}
-              onPress={() => setPreference({ province: p })}
-            />
-          ))}
-        </View>
         <Text style={styles.note}>
-          Note: distance is illustrative only. This demo does not use GPS.
+          Distance is measured from your phone's location. People whose age or gender
+          isn't shared are still shown.
         </Text>
       </ScrollView>
     </SafeAreaView>

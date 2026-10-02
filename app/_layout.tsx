@@ -196,6 +196,7 @@ export default function RootLayout() {
               <Stack.Screen name="preferences" />
               <Stack.Screen name="notifications" />
               <Stack.Screen name="privacy" />
+              <Stack.Screen name="change-password" />
               <Stack.Screen name="safety" />
             </Stack>
           </View>

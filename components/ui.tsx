@@ -201,7 +201,8 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
-    fontSize: font.body,
+    // 16px minimum: anything smaller makes iOS Safari zoom in on focus.
+    fontSize: 16,
     color: colors.text,
   },
   eye: { paddingHorizontal: spacing.md },
