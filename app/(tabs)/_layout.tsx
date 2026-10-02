@@ -2,6 +2,7 @@ import React, { useEffect } from "react";
 import { Redirect, Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { GlassTabBar } from "@/components/GlassTabBar";
+import { LocationGate } from "@/components/LocationGate";
 import { useAppStore } from "@/store/appStore";
 import { AUTH_DISABLED, sockets } from "@/constants/api";
 import { openSocket } from "@/services/socket";
@@ -10,21 +11,25 @@ export default function TabsLayout() {
   const matchCount = useAppStore((s) => s.matches.length);
   const loggedIn = useAppStore((s) => s.loggedIn);
   const unread = useAppStore((s) => s.conversations.reduce((n, c) => n + c.unread, 0));
+  const hasLocation = useAppStore((s) => s.deviceCoords != null);
+  const setDeviceCoords = useAppStore((s) => s.setDeviceCoords);
 
   // Fetch the profile, discover, matches and chats whenever the app opens
-  // signed in, and listen for new matches while it's open.
+  // signed in, and listen for new matches while it's open. Waits for the
+  // phone's location so discover is searched around it.
   useEffect(() => {
-    if (!loggedIn || AUTH_DISABLED) return;
+    if (!loggedIn || !hasLocation || AUTH_DISABLED) return;
     const { syncAll, onMatchEvent } = useAppStore.getState();
     syncAll();
     const socket = openSocket(sockets.match, () => {
       onMatchEvent().catch(() => {});
     });
     return socket.close;
-  }, [loggedIn]);
+  }, [loggedIn, hasLocation]);
 
   // Also catches an expired session (the API logs the user out).
   if (!loggedIn) return <Redirect href="/" />;
+  if (!hasLocation) return <LocationGate onReady={setDeviceCoords} />;
 
   return (
     <Tabs

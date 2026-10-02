@@ -23,6 +23,12 @@
     "plugins": [
       "expo-router",
       [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "SrokLove uses your location to show people near you."
+        }
+      ],
+      [
         "expo-image-picker",
         {
           "photosPermission": "SrokLove needs access to your photos so you can add them to your profile."

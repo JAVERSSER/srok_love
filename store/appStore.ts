@@ -3,7 +3,7 @@ import { storage, KEYS } from "@/services/storage";
 import { defaultCurrentUser } from "@/data/seed";
 import * as api from "@/services/api";
 import { AUTH_DISABLED } from "@/constants/api";
-import { provinceCoords } from "@/constants/provinces";
+import type { Coords } from "@/services/location";
 import {
   Account,
   Conversation,
@@ -52,6 +52,10 @@ interface AppState {
   pendingPhoto: api.LocalImage | null;
 
   currentUser: UserProfile;
+  // The phone's GPS position, read by the LocationGate each time the app
+  // opens. Memory only, so it's never stale.
+  deviceCoords: Coords | null;
+  setDeviceCoords: (coords: Coords) => void;
   // Every other user we've seen from discover, matches or chats, by id.
   users: UserProfile[];
   // Ids returned by the last discover call, in the server's order.
@@ -93,8 +97,7 @@ interface AppState {
 
   // Local-only change (fields the backend doesn't store, or AUTH_DISABLED).
   updateCurrentUser: (patch: Partial<UserProfile>) => void;
-  // Saves locally and sends name/bio/gender/interests and the province's
-  // location to the backend. Throws api.ApiError on failure.
+  // Saves locally and sends name/bio/gender/interests to the backend. Throws api.ApiError on failure.
   saveProfile: (patch: Partial<UserProfile>) => Promise<void>;
 
   // Pulls everything from the server after login or app start. Never throws.
@@ -202,6 +205,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   pendingPhoto: null,
 
   currentUser: defaultCurrentUser,
+  deviceCoords: null,
+  setDeviceCoords: (coords) => set({ deviceCoords: coords }),
   users: [],
   discoverIds: [],
   likes: [],
@@ -384,7 +389,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   saveProfile: async (patch) => {
-    const before = get().currentUser;
     get().updateCurrentUser(patch);
     if (AUTH_DISABLED) return;
     const u = get().currentUser;
@@ -396,20 +400,12 @@ export const useAppStore = create<AppState>((set, get) => ({
       telegram: u.telegram ?? "",
       facebook: u.facebook ?? "",
     });
-    const coords = provinceCoords[u.location];
-    if (coords && (u.location !== before.location || patch.location !== undefined)) {
-      await api.updateLocation(coords.latitude, coords.longitude);
-      get().refreshDiscover().catch(() => {});
-    }
   },
 
   syncAll: async () => {
     if (AUTH_DISABLED) return;
     const s = get();
     await s.loadMyProfile().catch(() => {});
-    // Discover only works once the server has a location for us.
-    const coords = provinceCoords[get().currentUser.location];
-    if (coords) await api.updateLocation(coords.latitude, coords.longitude).catch(() => {});
     await Promise.all([
       s.refreshDiscover().catch(() => {}),
       s.refreshMatches().catch(() => {}),
@@ -438,6 +434,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   refreshDiscover: async () => {
+    // Discover only returns people once the server has a location for us, so
+    // send the phone's position every time; a failure surfaces on the
+    // Discover screen.
+    const coords = get().deviceCoords;
+    if (coords) await api.updateLocation(coords.latitude, coords.longitude);
     const found = await api.discover();
     set((s) => ({
       users: mergeUsers(s.users, found),
