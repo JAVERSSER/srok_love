@@ -86,7 +86,12 @@ export default function Discover() {
             photo={avatarOf(currentUser)}
             searching={loading}
             title="No profiles yet"
-            message={error ?? "There's no one nearby right now. Check back later or adjust your preferences."}
+            message={
+              error ??
+              (discoverIds.length > 0
+                ? `${discoverIds.length} nearby ${discoverIds.length === 1 ? "person is" : "people are"} hidden because you already swiped them or they're outside your age, gender or distance preferences.`
+                : "There's no one nearby right now. Check back later or adjust your preferences.")
+            }
           />
         ) : (
           <>
