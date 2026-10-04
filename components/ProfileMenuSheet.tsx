@@ -30,16 +30,12 @@ export function ProfileMenuSheet({ visible, name, onClose, onShare, onPass }: Pr
 
   return (
     <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Close">
-      <Pressable style={[styles.sheet, { paddingBottom: insets.bottom + spacing.lg }]} onPress={() => {}}>
+      <Pressable style={[styles.sheet, { paddingBottom: insets.bottom + spacing.xxxl + spacing.lg }]} onPress={() => {}}>
         <View style={styles.handle} />
         <Text style={styles.title}>{name}</Text>
 
         <Option icon="share-outline" color={colors.blue} label="Share" onPress={() => pick(onShare)} />
         {onPass && <Option icon="close" color={colors.pass} label="Pass" onPress={() => pick(onPass)} />}
-
-        <Pressable onPress={onClose} style={({ pressed }) => [styles.cancel, pressed && { opacity: 0.7 }]}>
-          <Text style={styles.cancelText}>Cancel</Text>
-        </Pressable>
       </Pressable>
     </Pressable>
   );
@@ -98,12 +94,4 @@ const styles = StyleSheet.create({
   },
   iconWrap: { width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center" },
   optionLabel: { fontSize: font.body, fontWeight: "700", color: colors.text },
-  cancel: {
-    marginTop: spacing.lg,
-    paddingVertical: spacing.md,
-    borderRadius: radius.pill,
-    backgroundColor: colors.surfaceAlt,
-    alignItems: "center",
-  },
-  cancelText: { fontSize: font.body, fontWeight: "700", color: colors.text },
 });
