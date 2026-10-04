@@ -8,8 +8,10 @@ import {
   Alert,
   Platform,
   Linking,
+  Share,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import * as ExpoLinking from "expo-linking";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
@@ -18,6 +20,7 @@ import { InterestTag } from "@/components/InterestTag";
 import { EmptyState } from "@/components/EmptyState";
 import { PhotoPreview } from "@/components/PhotoPreview";
 import { PreviewCard } from "@/components/PreviewCard";
+import { ProfileMenuSheet } from "@/components/ProfileMenuSheet";
 import { nameAndAge, locationLabel } from "@/components/ProfileCard";
 import { colors } from "@/constants/colors";
 import { spacing, font, radius, shadow } from "@/constants/spacing";
@@ -33,8 +36,7 @@ const reportReasons: ReportReason[] = [
 ];
 
 export default function ProfileDetail() {
-  // `from=likes`: opened from the Likes tab, which has no ⋯ menu.
-  const { id, from } = useLocalSearchParams<{ id: string; from?: string }>();
+  const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const getUserById = useAppStore((s) => s.getUserById);
   const likeUser = useAppStore((s) => s.likeUser);
@@ -54,6 +56,7 @@ export default function ProfileDetail() {
   const [heroIndex, setHeroIndex] = useState(0);
   // Your own preview opens as a Tinder-style card; ⓘ expands it to the full profile.
   const [expanded, setExpanded] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   if (!user) {
     return (
@@ -71,6 +74,20 @@ export default function ProfileDetail() {
   const doPass = () => {
     passUser(user.id).catch(() => {});
     router.back();
+  };
+
+  const shareProfile = async () => {
+    const url =
+      Platform.OS === "web" ? `${window.location.origin}/profile/${user.id}` : ExpoLinking.createURL(`/profile/${user.id}`);
+    const message = `Check out ${user.name} on SrokLove! ${url}`;
+    // Desktop browsers without a share sheet: copy the link instead.
+    if (Platform.OS === "web" && !navigator.share) {
+      await navigator.clipboard?.writeText(url).catch(() => {});
+      window.alert("Link copied.");
+      return;
+    }
+    // Throws if the person closes the share sheet; nothing to do then.
+    await Share.share({ message, url, title: user.name }).catch(() => {});
   };
 
   const confirmBlock = () => {
@@ -281,14 +298,8 @@ export default function ProfileDetail() {
                 ))}
               </View>
             )}
-            <IconBtn icon="chevron-back" onPress={() => (isPreview ? setExpanded(false) : router.back())} />
-            {isPreview ? (
-              <View style={styles.previewPill}>
-                <Text style={styles.previewText}>Preview</Text>
-              </View>
-            ) : from === "likes" ? null : (
-              <IconBtn icon="ellipsis-horizontal" onPress={openReport} />
-            )}
+            {/* Holds the bars' place; the buttons themselves are pinned in topButtons below. */}
+            <View style={[styles.iconBtn, { backgroundColor: "transparent" }]} />
           </SafeAreaView>
         </View>
 
@@ -296,7 +307,7 @@ export default function ProfileDetail() {
           <View style={styles.nameRow}>
             <Text style={styles.name}>{nameLine}</Text>
             {user.verified && (
-              <Ionicons name="checkmark-circle" size={22} color={colors.superLike} />
+              <Ionicons name="checkmark-circle" size={22} color={colors.blue} />
             )}
           </View>
           {!!locLine && <Text style={styles.loc}>📍 {locLine}</Text>}
@@ -323,6 +334,16 @@ export default function ProfileDetail() {
 
       <PhotoPreview photos={photos} index={previewIndex} onClose={() => setPreviewIndex(null)} />
 
+      {!isPreview && (
+        <ProfileMenuSheet
+          visible={menuOpen}
+          name={user.name}
+          onClose={() => setMenuOpen(false)}
+          onShare={shareProfile}
+          onPass={isMatch ? undefined : doPass}
+        />
+      )}
+
       <SafeAreaView style={styles.actionBar} edges={["bottom"]}>
         {isPreview ? (
           <Pressable style={styles.editPill} onPress={() => router.push("/edit-profile")}>
@@ -342,6 +363,18 @@ export default function ProfileDetail() {
               <Ionicons name="heart" size={30} color={colors.white} />
             </Pressable>
           </>
+        )}
+      </SafeAreaView>
+
+      {/* Pinned above the ⋯ menu so Back still works while it's open. */}
+      <SafeAreaView style={[styles.topBar, styles.topButtons]} edges={["top"]} pointerEvents="box-none">
+        <IconBtn icon="chevron-back" onPress={() => (isPreview ? setExpanded(false) : router.back())} />
+        {isPreview ? (
+          <View style={styles.previewPill}>
+            <Text style={styles.previewText}>Preview</Text>
+          </View>
+        ) : (
+          <IconBtn icon="ellipsis-horizontal" onPress={() => setMenuOpen((open) => !open)} />
         )}
       </SafeAreaView>
     </View>
@@ -470,6 +503,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: spacing.lg,
   },
+  topButtons: { position: "absolute", top: 0, left: 0, right: 0 },
   iconBtn: {
     width: 40,
     height: 40,

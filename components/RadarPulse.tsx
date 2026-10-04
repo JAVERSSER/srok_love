@@ -24,7 +24,7 @@ type IconName = keyof typeof Ionicons.glyphMap;
 
 const INNER_ICONS: { icon: IconName; color: string; angle: number }[] = [
   { icon: "heart", color: colors.primary, angle: 0 },
-  { icon: "chatbubble-ellipses", color: colors.superLike, angle: 120 },
+  { icon: "chatbubble-ellipses", color: colors.blue, angle: 120 },
   { icon: "heart", color: colors.primary, angle: 240 },
 ];
 const OUTER_ICONS: { icon: IconName; color: string; angle: number }[] = [

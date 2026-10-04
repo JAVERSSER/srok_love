@@ -3,7 +3,7 @@ export const colors = {
   primaryDark: "#C21048",
   primarySoft: "#FCE7EE",
   accent: "#F5A623",
-  superLike: "#3B9DF8",
+  blue: "#3B9DF8",
 
   background: "#FFFFFF",
   surface: "#FFFFFF",

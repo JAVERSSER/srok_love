@@ -102,7 +102,7 @@ export default function Profile() {
               {age > 0 ? `, ${age}` : ""}
             </Text>
             {user.verified && (
-              <Ionicons name="checkmark-circle" size={20} color={colors.superLike} />
+              <Ionicons name="checkmark-circle" size={20} color={colors.blue} />
             )}
           </View>
           <Text style={styles.loc}>📍 {user.location}</Text>

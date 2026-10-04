@@ -106,7 +106,7 @@ export function PreviewCard({ user, photos, nameLine, locLine, onInfo }: Props) 
             <Text style={styles.name} numberOfLines={1}>
               {nameLine || "Your name"}
             </Text>
-            {user.verified && <Ionicons name="checkmark-circle" size={24} color={colors.superLike} />}
+            {user.verified && <Ionicons name="checkmark-circle" size={24} color={colors.blue} />}
           </View>
           {page}
         </View>

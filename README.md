@@ -117,8 +117,8 @@ or press `i` for iOS simulator / `a` for Android emulator.
 
 - Welcome + 3-step onboarding (skippable, saved locally)
 - Profile creation flow (name, age, gender, province, bio, interests, etc.)
-- **Discover** with swipeable cards (right = like, left = pass, up = super like)
-  built on Reanimated + Gesture Handler, with rotation + LIKE/PASS/SUPER indicators
+- **Discover** with swipeable cards (right = like, left = pass)
+  built on Reanimated + Gesture Handler, with rotation + LIKE/PASS indicators
 - Tap a card → full **profile detail** with photo carousel, report & block
 - **Likes** grid, **Matches** list, **Messages** list, **chat**
 - Match modal animation when there's a mutual like

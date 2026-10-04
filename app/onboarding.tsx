@@ -17,7 +17,7 @@ const steps = [
   {
     emoji: "💖",
     title: "Find someone you like",
-    text: "Swipe right to like, left to pass, up to super like.",
+    text: "Swipe right to like, left to pass.",
   },
   {
     emoji: "💬",

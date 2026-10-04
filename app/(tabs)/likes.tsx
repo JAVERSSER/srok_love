@@ -52,7 +52,7 @@ export default function Likes() {
           return (
             <Pressable
               style={styles.card}
-              onPress={() => router.push(`/profile/${u.id}?from=likes`)}
+              onPress={() => router.push(`/profile/${u.id}`)}
             >
               <Image source={{ uri: galleryOf(u)[0] }} style={styles.photo} contentFit="cover" />
               <View style={styles.overlay}>

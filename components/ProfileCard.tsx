@@ -143,7 +143,7 @@ export function ProfileCard({ user, onSwipe, onTap, isTop }: Props) {
             <View style={styles.nameRow}>
               <Text style={styles.name}>{nameAndAge(user)}</Text>
               {user.verified && (
-                <Ionicons name="checkmark-circle" size={20} color={colors.superLike} />
+                <Ionicons name="checkmark-circle" size={20} color={colors.blue} />
               )}
             </View>
             {!!locationLabel(user) && (
