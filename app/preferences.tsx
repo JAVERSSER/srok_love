@@ -6,7 +6,6 @@ import { ScreenHeader } from "@/components/ScreenHeader";
 import { SectionTitle } from "@/components/ui";
 import { colors } from "@/constants/colors";
 import { spacing, font, radius } from "@/constants/spacing";
-import { lookingForOptions } from "@/constants/provinces";
 
 const distances = [5, 10, 25, 50, 100];
 
@@ -18,18 +17,6 @@ export default function Preferences() {
     <SafeAreaView style={styles.container} edges={["top"]}>
       <ScreenHeader title="Swipe Preferences" />
       <ScrollView contentContainerStyle={{ paddingBottom: spacing.xxl }}>
-        <SectionTitle>Show me</SectionTitle>
-        <View style={styles.rowWrap}>
-          {lookingForOptions.map((o) => (
-            <Chip
-              key={o}
-              label={o}
-              active={pref.interestedIn === o}
-              onPress={() => setPreference({ interestedIn: o })}
-            />
-          ))}
-        </View>
-
         <SectionTitle>Age range</SectionTitle>
         <View style={styles.box}>
           <Text style={styles.value}>

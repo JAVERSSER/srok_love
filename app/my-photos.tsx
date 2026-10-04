@@ -1,9 +1,10 @@
 import React, { useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Alert, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
-import { useAppStore, MAX_PHOTOS } from "@/store/appStore";
+import { useAppStore, MAX_PHOTOS, MIN_PHOTOS } from "@/store/appStore";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { PhotoPreview } from "@/components/PhotoPreview";
 import { pickPhotos } from "@/components/AvatarPicker";
@@ -12,6 +13,9 @@ import { spacing, font, radius } from "@/constants/spacing";
 
 
 export default function MyPhotos() {
+  const router = useRouter();
+  // Set when the app sent the user here because they have too few photos.
+  const { required } = useLocalSearchParams<{ required?: string }>();
   const photos = useAppStore((s) => s.myPhotos);
   const addPhotos = useAppStore((s) => s.addPhotos);
   const removePhoto = useAppStore((s) => s.removePhoto);
@@ -43,6 +47,10 @@ export default function MyPhotos() {
   };
 
   const remove = (id: number) => {
+    if (photos.length <= MIN_PHOTOS) {
+      setError(`You need at least ${MIN_PHOTOS} photos. Add another before removing this one.`);
+      return;
+    }
     const doRemove = () => run(id, () => removePhoto(id));
     if (Platform.OS === "web") return doRemove();
     Alert.alert("Remove photo?", "It will no longer show on your profile.", [
@@ -53,14 +61,24 @@ export default function MyPhotos() {
 
   const slots = Array.from({ length: MAX_PHOTOS }, (_, i) => photos[i]);
   const firstEmpty = photos.length;
+  const missing = Math.max(0, MIN_PHOTOS - photos.length);
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
-      <ScreenHeader title="My Photos" />
+      <ScreenHeader title="My Photos" back={!required || missing === 0} />
       <ScrollView contentContainerStyle={styles.scroll}>
         <Text style={styles.hint}>
           Get up to 2x more likes with 6 pics. You can pick several at once. These show on your profile card; your profile picture is set separately. Tap a photo to preview it.
         </Text>
+
+        {missing > 0 && (
+          <View style={styles.required}>
+            <Ionicons name="alert-circle" size={18} color={colors.primary} />
+            <Text style={styles.requiredText}>
+              Add at least {MIN_PHOTOS} photos to continue ({missing} more to go).
+            </Text>
+          </View>
+        )}
 
         <View style={styles.grid}>
           {slots.map((photo, i) => {
@@ -115,6 +133,16 @@ export default function MyPhotos() {
         </View>
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
+
+        {required ? (
+          <Pressable
+            style={[styles.continueBtn, (missing > 0 || !!busy) && styles.continueOff]}
+            disabled={missing > 0 || !!busy}
+            onPress={() => router.replace("/(tabs)/discover")}
+          >
+            <Text style={styles.continueText}>Continue</Text>
+          </Pressable>
+        ) : null}
       </ScrollView>
 
       <PhotoPreview
@@ -162,5 +190,23 @@ const styles = StyleSheet.create({
   },
   cornerDark: { backgroundColor: "rgba(20,20,24,0.85)" },
   cornerLight: { backgroundColor: colors.white, borderWidth: 1, borderColor: colors.border },
+  required: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    backgroundColor: colors.surfaceAlt,
+  },
+  requiredText: { flex: 1, fontSize: font.body, color: colors.text, fontWeight: "600" },
+  continueBtn: {
+    marginTop: spacing.xl,
+    paddingVertical: spacing.md,
+    borderRadius: radius.lg,
+    alignItems: "center",
+    backgroundColor: colors.primary,
+  },
+  continueOff: { opacity: 0.4 },
+  continueText: { color: colors.white, fontSize: font.body, fontWeight: "700" },
   error: { color: colors.danger, fontSize: font.small, marginTop: spacing.lg, textAlign: "center" },
 });

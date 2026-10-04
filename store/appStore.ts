@@ -4,6 +4,7 @@ import { defaultCurrentUser } from "@/data/seed";
 import * as api from "@/services/api";
 import { AUTH_DISABLED } from "@/constants/api";
 import { getCurrentCoords, type Coords } from "@/services/location";
+import { unregisterPush, type PushData } from "@/services/push";
 import {
   Account,
   Conversation,
@@ -21,7 +22,6 @@ import {
 } from "@/models";
 
 const defaultPreference: Preference = {
-  interestedIn: "Everyone",
   ageMin: 18,
   ageMax: 35,
   distanceKm: 5,
@@ -50,6 +50,9 @@ interface AppState {
   signedOutReason: string | null;
   account: Account | null;
   myPhotos: ProfilePhoto[];
+  // True once the gallery is known (loaded from the server this session, or
+  // AUTH_DISABLED), so the MIN_PHOTOS gate doesn't fire on a stale empty list.
+  photosLoaded: boolean;
   // Profile photo picked while creating a profile, before there's an account
   // to upload it to. Memory only: picker URIs don't survive a restart on web.
   pendingPhoto: api.LocalImage | null;
@@ -99,7 +102,7 @@ interface AppState {
   // Uploads photos and appends them to the gallery (myPhotos) in order. If
   // some uploads fail, the rest are still saved and an error is thrown.
   addPhotos: (images: api.LocalImage[]) => Promise<void>;
-  // Takes a photo out of the gallery.
+  // Takes a photo out of the gallery. Throws if it would leave fewer than MIN_PHOTOS.
   removePhoto: (id: number) => Promise<void>;
 
   // Local-only change (fields the backend doesn't store, or AUTH_DISABLED).
@@ -117,7 +120,7 @@ interface AppState {
   // Called when the match socket reports a new match.
   onMatchEvent: () => Promise<void>;
 
-  likeUser: (targetId: string, superLike?: boolean) => Promise<boolean>; // resolves to isMatch
+  likeUser: (targetId: string) => Promise<boolean>; // resolves to isMatch
   passUser: (targetId: string) => Promise<void>;
 
   getRoomId: (otherUserId: string) => number | undefined;
@@ -137,6 +140,9 @@ interface AppState {
   reportUser: (targetId: string, reason: ReportReason) => void;
 
   markNotificationsRead: () => void;
+  // A push notification from the backend: adds it to the Notifications screen
+  // (once, even if it's reported twice) and refreshes what it's about.
+  receivePush: (push: { id: string; title: string; body: string; data: PushData }) => void;
   clearLastMatch: () => void;
 
   getUserById: (id: string) => UserProfile | undefined;
@@ -189,6 +195,8 @@ function mergeUsers(existing: UserProfile[], incoming: UserProfile[]): UserProfi
 }
 
 export const MAX_PHOTOS = 9;
+// Everyone needs at least this many gallery photos to use the app.
+export const MIN_PHOTOS = 2;
 
 // Sends the gallery's order to the server, then mirrors it locally.
 async function savePhotos(photos: ProfilePhoto[]) {
@@ -211,6 +219,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   signedOutReason: null,
   account: null,
   myPhotos: [],
+  photosLoaded: AUTH_DISABLED,
   pendingPhoto: null,
 
   currentUser: defaultCurrentUser,
@@ -303,6 +312,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       // A fresh account starts with a blank profile and no history.
       currentUser: { ...defaultCurrentUser, dateOfBirth: input.dateOfBirth, age: api.ageFromDob(input.dateOfBirth) },
       myPhotos: [],
+      photosLoaded: true,
       users: [],
       discoverIds: [],
       likes: [],
@@ -346,8 +356,9 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   // Ends the session but keeps the profile on this device.
   logout: () => {
-    api.clearTokens();
-    set({ loggedIn: false, lastMatch: null, messages: [], conversations: [] });
+    // Forget this phone's push token first, while the session can still do it.
+    unregisterPush().finally(() => api.clearTokens());
+    set({ loggedIn: false, lastMatch: null, messages: [], conversations: [], photosLoaded: AUTH_DISABLED });
     persist(get());
   },
 
@@ -397,6 +408,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   removePhoto: async (id) => {
+    if (get().myPhotos.length <= MIN_PHOTOS) {
+      throw new Error(`You need at least ${MIN_PHOTOS} photos. Add another before removing this one.`);
+    }
     await savePhotos(get().myPhotos.filter((p) => p.id !== id));
   },
 
@@ -443,10 +457,16 @@ export const useAppStore = create<AppState>((set, get) => ({
         interests: p.interests.length ? p.interests : s.currentUser.interests,
         telegram: p.telegram ?? s.currentUser.telegram,
         facebook: p.facebook ?? s.currentUser.facebook,
+        bio: p.bio ?? s.currentUser.bio,
+        location: p.location ?? s.currentUser.location,
+        occupation: p.occupation ?? s.currentUser.occupation,
+        education: p.education ?? s.currentUser.education,
+        relationshipGoal: p.relationshipGoal ?? s.currentUser.relationshipGoal,
         avatar: p.avatarUrl || s.currentUser.avatar,
         photos: gallery.map((g) => g.url),
       },
       myPhotos: gallery,
+      photosLoaded: true,
     }));
     persist(get());
   },
@@ -509,14 +529,13 @@ export const useAppStore = create<AppState>((set, get) => ({
     get().refreshChats().catch(() => {});
   },
 
-  likeUser: async (targetId, superLike = false) => {
+  likeUser: async (targetId) => {
     const state = get();
     if (!state.likes.some((l) => l.userId === "me" && l.targetId === targetId)) {
       const newLike: Like = {
         id: `like_${Date.now()}_${targetId}`,
         userId: "me",
         targetId,
-        superLike,
         createdAt: new Date().toISOString(),
       };
       set({ likes: [...state.likes, newLike] });
@@ -524,8 +543,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
     if (AUTH_DISABLED) return false;
 
-    // The backend has no super like, so it's sent as a normal like. The swipe
-    // response doesn't say whether it matched, so check the match list.
+    // The swipe response doesn't say whether it matched, so check the match list.
     await api.swipe(targetId, "like");
     const fresh = await get().refreshMatches();
     const matched = fresh.find((u) => u.id === targetId);
@@ -680,6 +698,22 @@ export const useAppStore = create<AppState>((set, get) => ({
     }));
   },
 
+  receivePush: ({ id, title, body, data }) => {
+    const notifId = `push_${id}`;
+    if (get().notifications.some((n) => n.id === notifId)) return;
+    const type = data.type === "match" || data.type === "message" || data.type === "like" ? data.type : "like";
+    set((s) => ({
+      notifications: [
+        { id: notifId, type, text: body || title, createdAt: new Date().toISOString(), read: false },
+        ...s.notifications,
+      ],
+    }));
+    persist(get());
+    if (AUTH_DISABLED) return;
+    if (data.type === "match") get().onMatchEvent().catch(() => {});
+    if (data.type === "message") get().refreshChats().catch(() => {});
+  },
+
   markNotificationsRead: () => {
     set((s) => ({
       notifications: s.notifications.map((n) => ({ ...n, read: true })),
@@ -701,6 +735,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     ]);
     const matched = new Set(s.matches.map((m) => m.matchedUserId));
     const pref = s.preference;
+    // Men only see women and women only see men.
+    const wanted = s.currentUser.gender === "female" ? "male" : "female";
 
     return s.discoverIds
       .map((id) => s.users.find((u) => u.id === id))
@@ -709,8 +745,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         if (blockedIds.has(u.id) || swiped.has(u.id) || matched.has(u.id)) return false;
         // Discover doesn't return age or gender, so only filter when known.
         if (u.age > 0 && (u.age < pref.ageMin || u.age > pref.ageMax)) return false;
-        if (u.gender && pref.interestedIn === "Men" && u.gender !== "male") return false;
-        if (u.gender && pref.interestedIn === "Women" && u.gender !== "female") return false;
+        if (u.gender && u.gender !== wanted) return false;
         if (u.distanceKm != null && u.distanceKm > pref.distanceKm) return false;
         return true;
       });

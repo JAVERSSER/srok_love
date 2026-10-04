@@ -17,10 +17,12 @@ import { useAppStore } from "@/store/appStore";
 import { InterestTag } from "@/components/InterestTag";
 import { EmptyState } from "@/components/EmptyState";
 import { PhotoPreview } from "@/components/PhotoPreview";
+import { PreviewCard } from "@/components/PreviewCard";
 import { nameAndAge, locationLabel } from "@/components/ProfileCard";
 import { colors } from "@/constants/colors";
 import { spacing, font, radius, shadow } from "@/constants/spacing";
 import { ReportReason, galleryOf, telegramUrl, facebookUrl } from "@/models";
+import { ageFromDob } from "@/services/api";
 
 const reportReasons: ReportReason[] = [
   "Harassment",
@@ -31,7 +33,8 @@ const reportReasons: ReportReason[] = [
 ];
 
 export default function ProfileDetail() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  // `from=likes`: opened from the Likes tab, which has no ⋯ menu.
+  const { id, from } = useLocalSearchParams<{ id: string; from?: string }>();
   const router = useRouter();
   const getUserById = useAppStore((s) => s.getUserById);
   const likeUser = useAppStore((s) => s.likeUser);
@@ -44,8 +47,13 @@ export default function ProfileDetail() {
   const isPreview = id === "me";
   const me = useAppStore((s) => s.currentUser);
   const privacy = useAppStore((s) => s.privacy);
+  const myPhotos = useAppStore((s) => s.myPhotos);
   const user = isPreview ? me : getUserById(id);
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
+  // Which photo the big top photo shows; tap its sides to move through them.
+  const [heroIndex, setHeroIndex] = useState(0);
+  // Your own preview opens as a Tinder-style card; ⓘ expands it to the full profile.
+  const [expanded, setExpanded] = useState(false);
 
   if (!user) {
     return (
@@ -113,28 +121,48 @@ export default function ProfileDetail() {
     ]);
   };
 
-  // Profile sections, with the rest of the photos placed between them so the
-  // profile reads like a story instead of a photo followed by a wall of text.
+  // Every basic fact on the profile. Your own preview also lists the empty ones
+  // ("Not added") so you can see what's missing; other people only see filled ones.
+  const hideAge = isPreview && !privacy.showAge;
+  const age = user.dateOfBirth ? ageFromDob(user.dateOfBirth) : user.age;
+  const basics: { icon: keyof typeof Ionicons.glyphMap; label: string; value?: string }[] = [
+    { icon: "calendar-outline", label: "Birthday", value: hideAge ? undefined : formatDob(user.dateOfBirth) },
+    { icon: "hourglass-outline", label: "Age", value: hideAge || !(age > 0) ? undefined : `${age} years old` },
+    { icon: user.gender === "female" ? "female" : "male", label: "Gender", value: user.gender && (user.gender === "female" ? "Woman" : "Man") },
+    { icon: "location-outline", label: "Lives in", value: [user.city, user.location].filter(Boolean).join(", ") || undefined },
+    { icon: "resize-outline", label: "Height", value: user.height },
+    { icon: "briefcase-outline", label: "Work", value: user.occupation },
+    { icon: "school-outline", label: "Education", value: user.education },
+    { icon: "heart-outline", label: "Looking for", value: user.relationshipGoal },
+  ];
+  // Height has no input in the app yet, so it's never listed as missing.
+  const shownBasics = basics.filter((b) => b.value || (isPreview && b.label !== "Height"));
+
+  // Profile sections. Photos only show in the top photo; tap its sides to move through them.
   const sections: React.ReactNode[] = [
-    !!user.bio && (
+    (!!user.bio || isPreview) && (
       <Section key="about" title="About me">
-        <Text style={styles.paragraph}>{user.bio}</Text>
+        {user.bio ? <Text style={styles.paragraph}>{user.bio}</Text> : <Text style={styles.missing}>Not added</Text>}
       </Section>
     ),
-    !!(user.occupation || user.education || user.height) && (
-      <Section key="details" title="Details">
-        {user.occupation ? <Detail icon="briefcase-outline" text={user.occupation} /> : null}
-        {user.education ? <Detail icon="school-outline" text={user.education} /> : null}
-        {user.height ? <Detail icon="resize-outline" text={user.height} /> : null}
+    shownBasics.length > 0 && (
+      <Section key="basics" title="Basics">
+        {shownBasics.map((b) => (
+          <Detail key={b.label} icon={b.icon} label={b.label} text={b.value} />
+        ))}
       </Section>
     ),
-    user.interests.length > 0 && (
+    (user.interests.length > 0 || isPreview) && (
       <Section key="interests" title="Interests">
-        <View style={styles.interests}>
-          {user.interests.map((i) => (
-            <InterestTag key={i} label={i} />
-          ))}
-        </View>
+        {user.interests.length ? (
+          <View style={styles.interests}>
+            {user.interests.map((i) => (
+              <InterestTag key={i} label={i} />
+            ))}
+          </View>
+        ) : (
+          <Text style={styles.missing}>Not added</Text>
+        )}
       </Section>
     ),
     !!(user.telegram || user.facebook) && (
@@ -156,53 +184,109 @@ export default function ProfileDetail() {
         )}
       </Section>
     ),
-    !!user.relationshipGoal && (
-      <Section key="goal" title="Relationship">
-        <Text style={styles.paragraph}>Looking for: {user.relationshipGoal}.</Text>
-      </Section>
-    ),
   ].filter(Boolean);
 
   // Your own preview follows your privacy switches, like other people would see it.
   const nameLine = isPreview && !privacy.showAge ? user.name : nameAndAge(user);
   const locLine = isPreview && !privacy.showDistance ? "" : locationLabel(user);
 
-  const photos = galleryOf(user);
-  const extraPhotos = photos.slice(1).map((uri, i) => (
-    <Pressable
-      key={`photo-${i}`}
-      onPress={() => setPreviewIndex(i + 1)}
-      accessibilityLabel={`View photo ${i + 2} full screen`}
-    >
-      <Image source={{ uri }} style={styles.inlinePhoto} contentFit="cover" transition={150} />
-    </Pressable>
-  ));
+  // Your own preview shows your "My Photos" gallery, never the round avatar.
+  const photos = isPreview ? myPhotos.map((p) => p.url) : galleryOf(user);
+  const hero = Math.min(heroIndex, Math.max(0, photos.length - 1));
+  const stepHero = (by: number) => setHeroIndex(Math.max(0, Math.min(photos.length - 1, hero + by)));
+
+  if (isPreview && !expanded) {
+    return (
+      <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
+        <View style={styles.cardHeader}>
+          <Pressable onPress={() => router.back()} hitSlop={10} accessibilityLabel="Back">
+            <Ionicons name="chevron-back" size={26} color={colors.text} />
+          </Pressable>
+          <Text style={styles.cardTitle}>Preview</Text>
+          <Pressable onPress={() => router.push("/edit-profile")} hitSlop={10}>
+            <Text style={styles.cardEdit}>Edit</Text>
+          </Pressable>
+        </View>
+        <View style={styles.cardWrap}>
+          <PreviewCard
+            user={user}
+            photos={photos}
+            nameLine={nameLine}
+            locLine={locLine}
+            onInfo={() => {
+              setHeroIndex(0);
+              setExpanded(true);
+            }}
+          />
+        </View>
+        <Text style={styles.cardNote}>This is how other people see your profile.</Text>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <View style={styles.container}>
       <ScrollView>
         <View style={styles.photoWrap}>
-          {/* The main photo; tap any photo to open the full-screen gallery. */}
-          <Pressable
-            style={StyleSheet.absoluteFill}
-            onPress={() => photos.length && setPreviewIndex(0)}
-            accessibilityLabel="View photos full screen"
-          >
-            <Image source={{ uri: photos[0] }} style={styles.photo} contentFit="cover" transition={150} />
-          </Pressable>
+          {/* The main photo: tap the right side for the next photo, the left side to go back. */}
+          {photos.length ? (
+            <Image source={{ uri: photos[hero] }} style={styles.photo} contentFit="cover" transition={150} />
+          ) : (
+            <View style={[styles.photo, styles.noPhoto]}>
+              <Ionicons name="images-outline" size={48} color={colors.textTertiary} />
+              {isPreview && <Text style={styles.noPhotoText}>Add photos in My Photos</Text>}
+            </View>
+          )}
+          {photos.length > 1 ? (
+            <View style={styles.tapZones}>
+              <Pressable style={{ flex: 1 }} onPress={() => stepHero(-1)} accessibilityLabel="Previous photo" />
+              <Pressable style={{ flex: 1 }} onPress={() => stepHero(1)} accessibilityLabel="Next photo" />
+            </View>
+          ) : (
+            <Pressable
+              style={StyleSheet.absoluteFill}
+              onPress={() => photos.length && setPreviewIndex(0)}
+              accessibilityLabel="View photo full screen"
+            />
+          )}
           {photos.length > 1 && (
-            <Pressable style={styles.countPill} onPress={() => setPreviewIndex(0)}>
+            <>
+              {hero > 0 && (
+                <Pressable style={[styles.arrow, { left: spacing.md }]} onPress={() => stepHero(-1)} hitSlop={8}>
+                  <Ionicons name="chevron-back" size={22} color={colors.white} />
+                </Pressable>
+              )}
+              {hero < photos.length - 1 && (
+                <Pressable style={[styles.arrow, { right: spacing.md }]} onPress={() => stepHero(1)} hitSlop={8}>
+                  <Ionicons name="chevron-forward" size={22} color={colors.white} />
+                </Pressable>
+              )}
+            </>
+          )}
+          {isPreview ? (
+            <Pressable style={styles.collapseBtn} onPress={() => setExpanded(false)} accessibilityLabel="Back to card">
+              <Ionicons name="arrow-down" size={22} color={colors.white} />
+            </Pressable>
+          ) : photos.length > 1 && (
+            <Pressable style={styles.countPill} onPress={() => setPreviewIndex(hero)}>
               <Ionicons name="images-outline" size={14} color={colors.white} />
-              <Text style={styles.countText}>{photos.length} photos</Text>
+              <Text style={styles.countText}>{hero + 1} / {photos.length}</Text>
             </Pressable>
           )}
-          <SafeAreaView style={styles.topBar} edges={["top"]}>
-            <IconBtn icon="chevron-back" onPress={() => router.back()} />
+          <SafeAreaView style={styles.topBar} edges={["top"]} pointerEvents="box-none">
+            {photos.length > 1 && (
+              <View style={styles.bars} pointerEvents="none">
+                {photos.map((_, i) => (
+                  <View key={i} style={[styles.bar, i === hero && styles.barActive]} />
+                ))}
+              </View>
+            )}
+            <IconBtn icon="chevron-back" onPress={() => (isPreview ? setExpanded(false) : router.back())} />
             {isPreview ? (
               <View style={styles.previewPill}>
                 <Text style={styles.previewText}>Preview</Text>
               </View>
-            ) : (
+            ) : from === "likes" ? null : (
               <IconBtn icon="ellipsis-horizontal" onPress={openReport} />
             )}
           </SafeAreaView>
@@ -217,7 +301,7 @@ export default function ProfileDetail() {
           </View>
           {!!locLine && <Text style={styles.loc}>📍 {locLine}</Text>}
 
-          {interleave(sections, extraPhotos)}
+          {sections}
 
           {isPreview ? (
             <Text style={styles.previewNote}>This is how other people see your profile.</Text>
@@ -264,16 +348,6 @@ export default function ProfileDetail() {
   );
 }
 
-/** Section, photo, section, photo… with any leftover photos at the end. */
-function interleave(sections: React.ReactNode[], photos: React.ReactNode[]): React.ReactNode[] {
-  const out: React.ReactNode[] = [];
-  const n = Math.max(sections.length, photos.length);
-  for (let i = 0; i < n; i++) {
-    if (sections[i]) out.push(sections[i]);
-    if (photos[i]) out.push(photos[i]);
-  }
-  return out;
-}
 
 function SocialBtn({
   icon,
@@ -315,19 +389,82 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function Detail({ icon, text }: { icon: keyof typeof Ionicons.glyphMap; text: string }) {
+function Detail({ icon, label, text }: { icon: keyof typeof Ionicons.glyphMap; label: string; text?: string }) {
   return (
     <View style={styles.detailRow}>
       <Ionicons name={icon} size={18} color={colors.textSecondary} />
-      <Text style={styles.detailText}>{text}</Text>
+      <Text style={styles.detailLabel}>{label}</Text>
+      <Text style={[styles.detailText, !text && styles.missing]}>{text || "Not added"}</Text>
     </View>
   );
+}
+
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+/** "2001-03-12" → "12 March 2001". */
+function formatDob(dob?: string): string | undefined {
+  const m = dob?.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return undefined;
+  return `${Number(m[3])} ${MONTHS[Number(m[2]) - 1]} ${m[1]}`;
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   photoWrap: { height: 460, backgroundColor: colors.surfaceAlt },
   photo: { ...StyleSheet.absoluteFillObject },
+  cardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+  },
+  cardTitle: { fontSize: font.title, fontWeight: "700", color: colors.text },
+  cardEdit: { fontSize: font.body, fontWeight: "700", color: colors.primary },
+  cardWrap: { flex: 1, paddingHorizontal: spacing.md },
+  cardNote: {
+    textAlign: "center",
+    fontSize: font.small,
+    color: colors.textSecondary,
+    paddingVertical: spacing.md,
+  },
+  collapseBtn: {
+    position: "absolute",
+    right: spacing.lg,
+    bottom: spacing.md,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.primary,
+    zIndex: 2,
+    ...shadow.card,
+  },
+  tapZones: { ...StyleSheet.absoluteFillObject, flexDirection: "row" },
+  arrow: {
+    position: "absolute",
+    top: "50%",
+    marginTop: -18,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.35)",
+  },
+  bars: {
+    position: "absolute",
+    left: spacing.md,
+    right: spacing.md,
+    bottom: -spacing.md,
+    flexDirection: "row",
+    gap: 4,
+  },
+  bar: { flex: 1, height: 3, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.4)" },
+  barActive: { backgroundColor: colors.white },
+  noPhoto: { alignItems: "center", justifyContent: "center", gap: spacing.sm, backgroundColor: colors.surfaceAlt },
+  noPhotoText: { fontSize: font.body, color: colors.textSecondary },
   topBar: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -383,13 +520,6 @@ const styles = StyleSheet.create({
   socialText: { color: colors.white, fontWeight: "700", fontSize: font.body },
   locked: { flexDirection: "row", alignItems: "center", gap: 6 },
   lockedText: { fontSize: font.body, color: colors.textSecondary },
-  inlinePhoto: {
-    width: "100%",
-    aspectRatio: 3 / 4,
-    borderRadius: radius.lg,
-    marginTop: spacing.xl,
-    backgroundColor: colors.surfaceAlt,
-  },
   countPill: {
     position: "absolute",
     right: spacing.md,
@@ -417,8 +547,10 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   paragraph: { fontSize: font.body, color: colors.text, lineHeight: 22 },
-  detailRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 },
-  detailText: { fontSize: font.body, color: colors.text },
+  detailRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 },
+  detailLabel: { width: 96, fontSize: font.body, color: colors.textSecondary },
+  detailText: { flex: 1, fontSize: font.body, color: colors.text, fontWeight: "600" },
+  missing: { fontSize: font.body, color: colors.textTertiary, fontStyle: "italic", fontWeight: "400" },
   interests: { flexDirection: "row", flexWrap: "wrap" },
   safety: {
     flexDirection: "row",

@@ -21,7 +21,7 @@ export default function Likes() {
 
   const likedUsers = likes
     .filter((l) => l.userId === "me")
-    .map((l) => ({ user: getUserById(l.targetId), superLike: l.superLike }))
+    .map((l) => ({ user: getUserById(l.targetId) }))
     .filter((x) => x.user);
 
   if (likedUsers.length === 0) {
@@ -52,7 +52,7 @@ export default function Likes() {
           return (
             <Pressable
               style={styles.card}
-              onPress={() => router.push(`/profile/${u.id}`)}
+              onPress={() => router.push(`/profile/${u.id}?from=likes`)}
             >
               <Image source={{ uri: galleryOf(u)[0] }} style={styles.photo} contentFit="cover" />
               <View style={styles.overlay}>
@@ -61,12 +61,12 @@ export default function Likes() {
               </View>
               <View style={styles.badge}>
                 <Ionicons
-                  name={isMatch ? "sparkles" : item.superLike ? "star" : "heart"}
+                  name={isMatch ? "sparkles" : "heart"}
                   size={14}
                   color={colors.white}
                 />
                 <Text style={styles.badgeText}>
-                  {isMatch ? "Match" : item.superLike ? "Super" : "Liked"}
+                  {isMatch ? "Match" : "Liked"}
                 </Text>
               </View>
             </Pressable>

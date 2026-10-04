@@ -1,12 +1,13 @@
 import React, { useEffect } from "react";
 import { AppState } from "react-native";
-import { Redirect, Tabs } from "expo-router";
+import { Redirect, Tabs, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { GlassTabBar } from "@/components/GlassTabBar";
 import { LocationGate } from "@/components/LocationGate";
-import { useAppStore } from "@/store/appStore";
+import { useAppStore, MIN_PHOTOS } from "@/store/appStore";
 import { AUTH_DISABLED, sockets } from "@/constants/api";
 import { openSocket } from "@/services/socket";
+import { registerForPush, listenForPush } from "@/services/push";
 
 const SESSION_CHECK_MS = 30000;
 
@@ -16,6 +17,8 @@ export default function TabsLayout() {
   const unread = useAppStore((s) => s.conversations.reduce((n, c) => n + c.unread, 0));
   const hasLocation = useAppStore((s) => s.deviceCoords != null);
   const setDeviceCoords = useAppStore((s) => s.setDeviceCoords);
+  const router = useRouter();
+  const needsPhotos = useAppStore((s) => s.photosLoaded && s.myPhotos.length < MIN_PHOTOS);
 
   // An account can only be logged in on one device: logging in elsewhere
   // revokes this device's session on the server. Check it regularly and
@@ -34,6 +37,28 @@ export default function TabsLayout() {
       clearInterval(timer);
       appState.remove();
     };
+  }, [loggedIn]);
+
+  // Push notifications from the backend: send this phone's token once signed
+  // in, keep each push in the Notifications list, and open what a tapped push
+  // is about (the chat for a message or match, else the notifications screen).
+  useEffect(() => {
+    if (!loggedIn || AUTH_DISABLED) return;
+    registerForPush();
+    return listenForPush(
+      (push) => useAppStore.getState().receivePush(push),
+      (data) => {
+        const { getRoomId } = useAppStore.getState();
+        const userId = data.userId != null ? String(data.userId) : undefined;
+        if ((data.type === "message" || data.type === "match") && userId && getRoomId(userId) != null) {
+          router.push(`/chat/${userId}`);
+        } else if (data.type === "like" && userId) {
+          router.push(`/profile/${userId}`);
+        } else {
+          router.push("/notifications");
+        }
+      }
+    );
   }, [loggedIn]);
 
   // Fetch the profile, discover, matches and chats whenever the app opens
@@ -60,6 +85,8 @@ export default function TabsLayout() {
   // Also catches an expired session (the API logs the user out).
   if (!loggedIn) return <Redirect href="/" />;
   if (!hasLocation) return <LocationGate onReady={setDeviceCoords} />;
+  // Everyone needs MIN_PHOTOS gallery photos before using the app.
+  if (needsPhotos) return <Redirect href="/my-photos?required=1" />;
 
   return (
     <Tabs

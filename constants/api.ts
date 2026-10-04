@@ -30,6 +30,9 @@ export const endpoints = {
   chatList: "/api/chats/list/",
   chatMessages: (roomId: number) => `/api/chats/messages/${roomId}/`,
   chatRead: (roomId: number) => `/api/chats/read/${roomId}/`,
+  // Push notifications: POST { token, platform } saves this phone's Expo push
+  // token; DELETE with { token } forgets it on logout. See README.
+  pushDevices: "/api/notifications/devices/",
 } as const;
 
 // Django Channels sockets live on the same server as the API. Vercel can't

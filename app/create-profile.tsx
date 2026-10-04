@@ -23,7 +23,6 @@ import { AvatarPicker, pickAvatarImage } from "@/components/AvatarPicker";
 import {
   provinces,
   genderOptions,
-  lookingForOptions,
   interestOptions,
   relationshipGoals,
 } from "@/constants/provinces";
@@ -34,7 +33,6 @@ import { dateOfBirthToIso, formatDateOfBirthInput, validateDateOfBirth } from "@
 // Hoisted so the memoized chip rows get stable props and skip re-rendering
 // while the user types in the text fields.
 const genderLabels = genderOptions.map((g) => (g === "male" ? "Male" : "Female"));
-const lookingForLabels = [...lookingForOptions];
 
 export default function CreateProfile() {
   const router = useRouter();
@@ -50,7 +48,6 @@ export default function CreateProfile() {
   const [name, setName] = useState("");
   const [dobInput, setDobInput] = useState("");
   const [gender, setGender] = useState<Gender | null>(null);
-  const [lookingFor, setLookingFor] = useState<(typeof lookingForOptions)[number] | null>(null);
   const [province, setProvince] = useState("");
   const [bio, setBio] = useState("");
   const [occupation, setOccupation] = useState("");
@@ -74,10 +71,6 @@ export default function CreateProfile() {
     (v: string) => setGender(v === "Male" ? "male" : "female"),
     []
   );
-  const selectLookingFor = useCallback(
-    (v: string) => setLookingFor(v as (typeof lookingForOptions)[number]),
-    []
-  );
 
   const pickPhoto = async () => {
     const image = await pickAvatarImage();
@@ -92,18 +85,16 @@ export default function CreateProfile() {
     name.trim().length > 1 &&
     !!dateOfBirth &&
     !!gender &&
-    !!lookingFor &&
     !!province &&
     !!goal;
 
   const save = async () => {
-    if (!valid || !gender || !lookingFor || saving) return;
+    if (!valid || !gender || saving) return;
     const profile = {
       name: name.trim(),
       age,
       dateOfBirth,
       gender,
-      lookingFor,
       location: province,
       bio: bio.trim(),
       occupation,
@@ -202,9 +193,6 @@ export default function CreateProfile() {
             value={gender === "male" ? "Male" : gender === "female" ? "Female" : ""}
             onSelect={selectGender}
           />
-
-          <Label text="Looking for" />
-          <Chips options={lookingForLabels} value={lookingFor ?? ""} onSelect={selectLookingFor} />
 
           <Label text="Province" />
           <Chips options={provinces} value={province} onSelect={setProvince} wrap />

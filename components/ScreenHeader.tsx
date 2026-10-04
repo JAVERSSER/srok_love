@@ -5,10 +5,11 @@ import { Ionicons } from "@expo/vector-icons";
 import { colors } from "@/constants/colors";
 import { spacing, font } from "@/constants/spacing";
 
-export function ScreenHeader({ title, right }: { title: string; right?: React.ReactNode }) {
+export function ScreenHeader({ title, right, back = true }: { title: string; right?: React.ReactNode; back?: boolean }) {
   const router = useRouter();
   return (
     <View style={styles.header}>
+      {back ? (
       <Pressable
         // A page opened directly (e.g. refreshed on web) has no history to go back to.
         onPress={() => (router.canGoBack() ? router.back() : router.replace("/(tabs)/profile"))}
@@ -17,6 +18,7 @@ export function ScreenHeader({ title, right }: { title: string; right?: React.Re
       >
         <Ionicons name="chevron-back" size={26} color={colors.text} />
       </Pressable>
+      ) : null}
       <Text style={styles.title}>{title}</Text>
       <View style={styles.right}>{right}</View>
     </View>

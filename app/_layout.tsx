@@ -35,8 +35,14 @@ export default function RootLayout() {
     // iOS Safari zooms into any focused input with font-size < 16px and never
     // zooms back out, so touch devices get 16px inputs.
     const style = document.createElement("style");
+    //
+    // html/body get the app background so that if Safari ever does shift the
+    // page, the gap isn't a flash of white.
     style.textContent = `
-      html, body { height: 100dvh; overflow: hidden; }
+      html, body {
+        height: 100dvh; overflow: hidden; overscroll-behavior: none;
+        background: ${colors.background};
+      }
       #root {
         position: fixed; left: 0; right: 0;
         top: var(--vv-top, 0px);
@@ -102,6 +108,45 @@ export default function RootLayout() {
       (el instanceof HTMLInputElement &&
         !["checkbox", "radio", "button", "submit", "range", "file"].includes(el.type));
 
+    // iOS Safari scrolls the *document* to reveal a focused input the keyboard
+    // would cover, even though html/body are overflow:hidden. With #root
+    // position:fixed that slides the app off screen (white gap) and leaves
+    // iOS's tap targets/caret out of sync with what's drawn, so fields stop
+    // accepting taps. Keep the document pinned at 0 and reveal inputs inside
+    // the app's own scroll view instead (revealFocused below).
+    const lockScroll = () => {
+      if (window.scrollX !== 0 || window.scrollY !== 0) window.scrollTo(0, 0);
+    };
+
+    const scrollParent = (el: Element) => {
+      for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) {
+        const { overflowY } = getComputedStyle(p);
+        if ((overflowY === "auto" || overflowY === "scroll") && p.scrollHeight > p.clientHeight) {
+          return p;
+        }
+      }
+      return null;
+    };
+
+    // Scrolls the focused field into the part of its scroll view that will
+    // stay visible above the keyboard. Done on focus, before the keyboard
+    // opens, so Safari sees nothing to reveal and doesn't pan the page.
+    const MARGIN = 24;
+    const revealFocused = (visibleHeight: number) => {
+      const el = document.activeElement;
+      if (!el || !isTextField(el)) return;
+      const container = scrollParent(el);
+      if (!container) return;
+      const box = container.getBoundingClientRect();
+      const top = box.top + MARGIN;
+      const bottom = Math.min(box.bottom, visibleHeight) - MARGIN;
+      const r = el.getBoundingClientRect();
+      if (r.top >= top && r.bottom <= bottom) return;
+      // Aim for the field sitting a third of the way down the visible area.
+      const target = top + Math.max(0, (bottom - top - r.height) / 3);
+      container.scrollTop += r.top - target;
+    };
+
     // iOS: batch visualViewport events to one write per frame.
     // Other touch devices: wait for the keyboard animation to settle.
     let frame = 0;
@@ -109,6 +154,7 @@ export default function RootLayout() {
     const applyResize = () => {
       frame = 0;
       if (!vv) return;
+      if (isIOS) lockScroll();
       const kb = window.innerHeight - vv.height;
       if (kb > 120 && Math.abs(kb - keyboardHeight) > 1) {
         keyboardHeight = kb;
@@ -118,6 +164,8 @@ export default function RootLayout() {
       }
       setHeight(vv.height);
       setTop(vv.offsetTop);
+      // Correct the focus-time guess now the real keyboard size is known.
+      if (isTouch && kb > 120) revealFocused(vv.height);
     };
     const onResize = () => {
       if (isIOS || !isTouch) {
@@ -129,11 +177,17 @@ export default function RootLayout() {
     };
     // Panning doesn't change the visible height; only follow the offset, so
     // it can't undo a predicted height mid-animation.
-    const onScroll = () => vv && setTop(vv.offsetTop);
+    const onScroll = () => {
+      if (isIOS) lockScroll();
+      if (vv) setTop(vv.offsetTop);
+    };
 
     const onFocusIn = (e: FocusEvent) => {
-      if (isTouch && keyboardHeight && isTextField(e.target as Element)) {
-        setHeight(window.innerHeight - keyboardHeight);
+      if (!isTouch || !isTextField(e.target as Element)) return;
+      if (keyboardHeight) {
+        const predicted = window.innerHeight - keyboardHeight;
+        setHeight(predicted);
+        revealFocused(predicted);
       }
     };
     const onFocusOut = () => {
@@ -150,11 +204,13 @@ export default function RootLayout() {
     applyResize();
     vv?.addEventListener("resize", onResize);
     vv?.addEventListener("scroll", onScroll);
+    if (isIOS) window.addEventListener("scroll", lockScroll, { passive: true });
     document.addEventListener("focusin", onFocusIn);
     document.addEventListener("focusout", onFocusOut);
     return () => {
       vv?.removeEventListener("resize", onResize);
       vv?.removeEventListener("scroll", onScroll);
+      window.removeEventListener("scroll", lockScroll);
       document.removeEventListener("focusin", onFocusIn);
       document.removeEventListener("focusout", onFocusOut);
       cancelAnimationFrame(frame);

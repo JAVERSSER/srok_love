@@ -318,7 +318,15 @@ export interface MyProfile {
   photos: RemotePhoto[];
   telegram?: string;
   facebook?: string;
+  // Only filled in when the server sends them.
+  bio?: string;
+  location?: string;
+  occupation?: string;
+  education?: string;
+  relationshipGoal?: string;
 }
+
+const text = (v: unknown): string | undefined => (typeof v === "string" && v.trim() ? v : undefined);
 
 export async function getProfile(): Promise<MyProfile> {
   const d = await request<Json>(endpoints.profile);
@@ -333,6 +341,11 @@ export async function getProfile(): Promise<MyProfile> {
     photos: Array.isArray(d.photos) ? d.photos.map(toPhoto) : [],
     telegram: d.telegram || undefined,
     facebook: d.facebook || undefined,
+    bio: text(d.bio),
+    location: text(d.province) ?? text(d.location),
+    occupation: text(d.occupation),
+    education: text(d.education),
+    relationshipGoal: text(d.relationship_goal),
   };
 }
 
@@ -347,6 +360,16 @@ export interface ProfileUpdate {
 
 export async function updateProfile(patch: ProfileUpdate): Promise<void> {
   await request(endpoints.updateProfile, { method: "POST", body: patch });
+}
+
+/** Tells the backend where to send push notifications for this account. */
+export async function registerPushToken(token: string): Promise<void> {
+  await request(endpoints.pushDevices, { method: "POST", body: { token, platform: Platform.OS } });
+}
+
+/** Stops push notifications to this phone (on logout). */
+export async function unregisterPushToken(token: string): Promise<void> {
+  await request(endpoints.pushDevices, { method: "DELETE", body: { token } });
 }
 
 export async function updateLocation(latitude: number, longitude: number): Promise<void> {

@@ -6,7 +6,6 @@ export const defaultCurrentUser: UserProfile = {
   name: "",
   age: 0,
   gender: "male",
-  lookingFor: "Everyone",
   location: "Phnom Penh",
   city: "",
   bio: "",

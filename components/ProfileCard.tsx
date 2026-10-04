@@ -16,7 +16,7 @@ import { ageFromDob } from "@/services/api";
 import { colors } from "@/constants/colors";
 import { radius, spacing, font, shadow, layout } from "@/constants/spacing";
 
-export type SwipeDir = "left" | "right" | "up";
+export type SwipeDir = "left" | "right";
 
 /** "Name, 24", or just the name when the age isn't known. */
 export function nameAndAge(user: UserProfile): string {
@@ -74,7 +74,6 @@ export function ProfileCard({ user, onSwipe, onTap, isTop }: Props) {
     .onEnd((e) => {
       const goRight = e.translationX > SWIPE_THRESHOLD;
       const goLeft = e.translationX < -SWIPE_THRESHOLD;
-      const goUp = e.translationY < -SWIPE_THRESHOLD && Math.abs(e.translationX) < SWIPE_THRESHOLD;
 
       if (goRight) {
         translateX.value = withSpring(width * 1.5);
@@ -82,9 +81,6 @@ export function ProfileCard({ user, onSwipe, onTap, isTop }: Props) {
       } else if (goLeft) {
         translateX.value = withSpring(-width * 1.5);
         runOnJS(trigger)("left");
-      } else if (goUp) {
-        translateY.value = withSpring(-width * 1.5);
-        runOnJS(trigger)("up");
       } else {
         translateX.value = withSpring(0);
         translateY.value = withSpring(0);
@@ -117,9 +113,6 @@ export function ProfileCard({ user, onSwipe, onTap, isTop }: Props) {
   const passStyle = useAnimatedStyle(() => ({
     opacity: interpolate(translateX.value, [-SWIPE_THRESHOLD, 0], [1, 0], Extrapolation.CLAMP),
   }));
-  const superStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(translateY.value, [-SWIPE_THRESHOLD, 0], [1, 0], Extrapolation.CLAMP),
-  }));
 
   return (
     <GestureDetector gesture={pan}>
@@ -144,9 +137,6 @@ export function ProfileCard({ user, onSwipe, onTap, isTop }: Props) {
           </Animated.View>
           <Animated.View style={[styles.badge, styles.passBadge, passStyle]}>
             <Text style={styles.passText}>PASS ✕</Text>
-          </Animated.View>
-          <Animated.View style={[styles.superBadge, superStyle]}>
-            <Text style={styles.superText}>SUPER LIKE ⭐</Text>
           </Animated.View>
 
           <View style={styles.info}>
@@ -217,15 +207,4 @@ const styles = StyleSheet.create({
   },
   likeText: { color: colors.like, fontWeight: "900", fontSize: font.title },
   passText: { color: colors.pass, fontWeight: "900", fontSize: font.title },
-  superBadge: {
-    position: "absolute",
-    alignSelf: "center",
-    bottom: "38%",
-    borderColor: colors.superLike,
-    borderWidth: 3,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.lg,
-    borderRadius: radius.md,
-  },
-  superText: { color: colors.superLike, fontWeight: "900", fontSize: font.title },
 });

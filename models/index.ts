@@ -42,7 +42,6 @@ export interface UserProfile {
   age: number; // 0 when unknown (the discover API doesn't return it)
   dateOfBirth?: string; // YYYY-MM-DD; when set, age is calculated from it
   gender?: Gender;
-  lookingFor?: "Men" | "Women" | "Everyone";
   location: string; // province
   city?: string;
   bio: string;
@@ -67,7 +66,6 @@ export interface Like {
   id: string;
   userId: string; // who liked
   targetId: string; // who was liked
-  superLike?: boolean;
   createdAt: string;
 }
 
@@ -109,7 +107,6 @@ export interface Notification {
 }
 
 export interface Preference {
-  interestedIn: "Men" | "Women" | "Everyone";
   ageMin: number;
   ageMax: number;
   distanceKm: number;
