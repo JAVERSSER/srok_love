@@ -66,14 +66,18 @@ export default function ProfileDetail() {
     );
   }
 
+  // Opened from a shared link or after a page refresh there's nothing to go
+  // back to, so go to Discover instead.
+  const goBack = () => (router.canGoBack() ? router.back() : router.replace("/(tabs)/discover"));
+
   // A match shows the MatchModal on the discover screen via lastMatch.
   const doLike = () => {
     likeUser(user.id).catch(() => {});
-    router.back();
+    goBack();
   };
   const doPass = () => {
     passUser(user.id).catch(() => {});
-    router.back();
+    goBack();
   };
 
   const shareProfile = async () => {
@@ -93,7 +97,7 @@ export default function ProfileDetail() {
   const confirmBlock = () => {
     const doBlock = () => {
       blockUser(user.id);
-      router.back();
+      goBack();
     };
     // Alert.alert's buttons don't show on web.
     if (Platform.OS === "web") {
@@ -216,7 +220,7 @@ export default function ProfileDetail() {
     return (
       <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
         <View style={styles.cardHeader}>
-          <Pressable onPress={() => router.back()} hitSlop={10} accessibilityLabel="Back">
+          <Pressable onPress={() => goBack()} hitSlop={10} accessibilityLabel="Back">
             <Ionicons name="chevron-back" size={26} color={colors.text} />
           </Pressable>
           <Text style={styles.cardTitle}>Preview</Text>
@@ -334,16 +338,6 @@ export default function ProfileDetail() {
 
       <PhotoPreview photos={photos} index={previewIndex} onClose={() => setPreviewIndex(null)} />
 
-      {!isPreview && (
-        <ProfileMenuSheet
-          visible={menuOpen}
-          name={user.name}
-          onClose={() => setMenuOpen(false)}
-          onShare={shareProfile}
-          onPass={isMatch ? undefined : doPass}
-        />
-      )}
-
       <SafeAreaView style={styles.actionBar} edges={["bottom"]}>
         {isPreview ? (
           <Pressable style={styles.editPill} onPress={() => router.push("/edit-profile")}>
@@ -366,9 +360,20 @@ export default function ProfileDetail() {
         )}
       </SafeAreaView>
 
+      {/* After the action bar so the Like and Pass buttons don't sit on top of it. */}
+      {!isPreview && (
+        <ProfileMenuSheet
+          visible={menuOpen}
+          name={user.name}
+          onClose={() => setMenuOpen(false)}
+          onShare={shareProfile}
+          onPass={isMatch ? undefined : doPass}
+        />
+      )}
+
       {/* Pinned above the ⋯ menu so Back still works while it's open. */}
       <SafeAreaView style={[styles.topBar, styles.topButtons]} edges={["top"]} pointerEvents="box-none">
-        <IconBtn icon="chevron-back" onPress={() => (isPreview ? setExpanded(false) : router.back())} />
+        <IconBtn icon="chevron-back" onPress={() => (isPreview ? setExpanded(false) : goBack())} />
         {isPreview ? (
           <View style={styles.previewPill}>
             <Text style={styles.previewText}>Preview</Text>
@@ -503,7 +508,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: spacing.lg,
   },
-  topButtons: { position: "absolute", top: 0, left: 0, right: 0 },
+  topButtons: { position: "absolute", top: 0, left: 0, right: 0, zIndex: 11, elevation: 11 },
   iconBtn: {
     width: 40,
     height: 40,

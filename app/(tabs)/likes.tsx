@@ -41,13 +41,15 @@ export default function Likes() {
     <SafeAreaView style={styles.container} edges={["top"]}>
       <Header />
       <FlatList
-        data={likedUsers}
-        keyExtractor={(item) => item.user!.id}
+        // An odd count gets an empty slot so the last card stays half width.
+        data={likedUsers.length % 2 ? [...likedUsers, { user: undefined }] : likedUsers}
+        keyExtractor={(item) => item.user?.id ?? "filler"}
         numColumns={2}
         columnWrapperStyle={{ gap: spacing.md }}
         contentContainerStyle={[styles.grid, { paddingBottom: tabBarSpace }]}
         renderItem={({ item }) => {
-          const u = item.user!;
+          if (!item.user) return <View style={{ flex: 1 }} />;
+          const u = item.user;
           const isMatch = matches.some((m) => m.matchedUserId === u.id);
           return (
             <Pressable

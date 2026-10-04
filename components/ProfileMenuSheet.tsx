@@ -67,7 +67,14 @@ function Option({
 }
 
 const styles = StyleSheet.create({
-  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: colors.overlay, justifyContent: "flex-end" },
+  // Above the profile's Like/Pass buttons, whose shadow (elevation) lifts them on Android.
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: colors.overlay,
+    justifyContent: "flex-end",
+    zIndex: 10,
+    elevation: 10,
+  },
   sheet: {
     backgroundColor: colors.background,
     borderTopLeftRadius: radius.xl,
