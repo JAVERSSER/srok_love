@@ -103,15 +103,6 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="likes"
-        options={{
-          title: "Likes",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="heart" color={color} size={size} />
-          ),
-        }}
-      />
-      <Tabs.Screen
         name="matches"
         options={{
           title: "Matches",

@@ -20,7 +20,6 @@ export default function Settings() {
           <Row label="Swipe Preferences" onPress={() => router.push("/preferences")} right={<Chevron />} />
           <Row label="Notifications" onPress={() => router.push("/notifications")} right={<Chevron />} />
           <Row label="Privacy" onPress={() => router.push("/privacy")} right={<Chevron />} />
-          <Row label="Change Password" onPress={() => router.push("/change-password")} right={<Chevron />} />
           <Row label="Safety & Blocked Users" onPress={() => router.push("/safety")} right={<Chevron />} />
         </View>
       </ScrollView>
