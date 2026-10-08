@@ -251,6 +251,19 @@ export async function changePassword(newPassword: string): Promise<void> {
   await request(endpoints.changePassword, { method: "POST", body: { new_password: newPassword } });
 }
 
+/** Asks the backend to email a password reset code to this address. */
+export async function requestPasswordReset(email: string): Promise<void> {
+  await request(endpoints.passwordReset, { body: { email: email.trim() }, auth: false });
+}
+
+/** Sets a new password using the code from the reset email. */
+export async function confirmPasswordReset(email: string, code: string, newPassword: string): Promise<void> {
+  await request(endpoints.passwordResetConfirm, {
+    body: { email: email.trim(), code: code.trim(), new_password: newPassword },
+    auth: false,
+  });
+}
+
 /**
  * Makes a cheap authenticated call so a revoked session is noticed even when
  * the user isn't doing anything. A 401 the refresh can't fix triggers

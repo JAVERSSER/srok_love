@@ -4,9 +4,10 @@ import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
-import { useAppStore, MAX_PHOTOS } from "@/store/appStore";
+import { useAppStore, MAX_PHOTOS, MIN_PHOTOS } from "@/store/appStore";
 import { InterestTag } from "@/components/InterestTag";
-import { Row, SectionTitle } from "@/components/ui";
+import { SectionTitle } from "@/components/ui";
+import { SettingsGroup, SettingsItem, confirmLogout } from "@/components/SettingsList";
 import { colors } from "@/constants/colors";
 import { spacing, font, radius, shadow } from "@/constants/spacing";
 import { useTabBarSpace } from "@/components/GlassTabBar";
@@ -45,24 +46,26 @@ export default function Profile() {
     }
   };
 
-  const doLogout = () => {
-    logout();
-    router.replace("/");
-  };
+  const doLogout = () =>
+    confirmLogout(() => {
+      logout();
+      router.replace("/");
+    });
+
+  // What's still missing, in the order we suggest doing it.
+  const steps = [
+    { done: !!photo, label: "Add a profile photo", go: changePhoto },
+    { done: user.photos.length >= MIN_PHOTOS, label: `Add at least ${MIN_PHOTOS} photos`, go: () => router.push("/my-photos") },
+    { done: !!user.bio, label: "Write a short bio", go: () => router.push("/edit-profile") },
+    { done: user.interests.length > 0, label: "Pick your interests", go: () => router.push("/edit-profile") },
+  ];
+  const doneCount = steps.filter((st) => st.done).length;
+  const nextStep = steps.find((st) => !st.done);
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       <ScrollView contentContainerStyle={{ paddingBottom: tabBarSpace + spacing.lg }}>
         <View style={styles.hero}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Settings"
-            onPress={() => router.push("/settings")}
-            hitSlop={8}
-            style={({ pressed }) => [styles.settingsBtn, pressed && { opacity: 0.6 }]}
-          >
-            <Ionicons name="settings-outline" size={24} color={colors.text} />
-          </Pressable>
           <View>
             <Pressable
               accessibilityRole="button"
@@ -118,6 +121,29 @@ export default function Profile() {
           </View>
         </View>
 
+        {nextStep && (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Profile ${doneCount} of ${steps.length} complete. Next: ${nextStep.label}`}
+            onPress={nextStep.go}
+            style={({ pressed }) => [styles.progressCard, pressed && { opacity: 0.85 }]}
+          >
+            <View style={styles.progressTop}>
+              <Text style={styles.progressTitle}>Complete your profile</Text>
+              <Text style={styles.progressCount}>
+                {doneCount}/{steps.length}
+              </Text>
+            </View>
+            <View style={styles.progressTrack}>
+              <View style={[styles.progressFill, { width: `${(doneCount / steps.length) * 100}%` }]} />
+            </View>
+            <View style={styles.progressNext}>
+              <Text style={styles.progressNextText}>Next: {nextStep.label}</Text>
+              <Ionicons name="arrow-forward" size={16} color={colors.primary} />
+            </View>
+          </Pressable>
+        )}
+
         <View style={styles.photosBox}>
           <SectionTitle style={{ marginHorizontal: 0 }}>My Photos</SectionTitle>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.strip}>
@@ -156,10 +182,25 @@ export default function Profile() {
           </View>
         )}
 
-        <View style={[styles.menu, { marginTop: spacing.lg }]}>
-          <Row label="Help & Support" onPress={() => setSupportOpen(true)} right={<Chevron />} />
-          <Row label="Logout" danger onPress={doLogout} />
-        </View>
+        <SettingsGroup>
+          <SettingsItem
+            icon="settings-outline"
+            color={colors.textSecondary}
+            label="Settings"
+            subtitle="Preferences, privacy, password and more"
+            onPress={() => router.push("/settings")}
+          />
+          <SettingsItem
+            icon="help-circle-outline"
+            color={colors.blue}
+            label="Help & Support"
+            onPress={() => setSupportOpen(true)}
+          />
+        </SettingsGroup>
+
+        <SettingsGroup>
+          <SettingsItem icon="log-out-outline" label="Log out" danger onPress={doLogout} />
+        </SettingsGroup>
 
         <Text style={styles.version}>SrokLove • Demo v1.0</Text>
       </ScrollView>
@@ -177,10 +218,6 @@ export default function Profile() {
   );
 }
 
-function Chevron() {
-  return <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />;
-}
-
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surfaceAlt },
   hero: {
@@ -188,13 +225,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     paddingTop: spacing.lg,
     paddingBottom: spacing.xl,
-  },
-  settingsBtn: {
-    position: "absolute",
-    top: spacing.md,
-    right: spacing.lg,
-    zIndex: 1,
-    padding: spacing.xs,
   },
   avatar: {
     width: 110,
@@ -281,11 +311,26 @@ const styles = StyleSheet.create({
     padding: spacing.xl,
   },
   interests: { flexDirection: "row", flexWrap: "wrap", marginTop: spacing.sm },
-  menu: {
+  progressCard: {
+    backgroundColor: colors.primarySoft,
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.md,
+    padding: spacing.lg,
+    borderRadius: radius.lg,
+  },
+  progressTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  progressTitle: { fontSize: font.body, fontWeight: "800", color: colors.text },
+  progressCount: { fontSize: font.small, fontWeight: "700", color: colors.primary },
+  progressTrack: {
+    height: 8,
+    borderRadius: 4,
     backgroundColor: colors.background,
     marginTop: spacing.sm,
-    borderRadius: 0,
+    overflow: "hidden",
   },
+  progressFill: { height: "100%", borderRadius: 4, backgroundColor: colors.primary },
+  progressNext: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: spacing.sm },
+  progressNextText: { fontSize: font.small, fontWeight: "700", color: colors.primary },
   version: {
     textAlign: "center",
     color: colors.textTertiary,

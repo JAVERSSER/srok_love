@@ -31,10 +31,20 @@ export function LocationGate({ onReady }: { onReady: (coords: Coords) => void })
     [onReady],
   );
 
-  // First look without prompting; the system prompt shows only when the user taps Allow.
+  // Go straight to the system permission prompt; this screen only shows if
+  // location ends up refused or switched off.
   useEffect(() => {
-    check(false);
+    check(true);
   }, [check]);
+
+  // Waiting on the system prompt: show nothing of our own on top of it.
+  if (!result) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </SafeAreaView>
+    );
+  }
 
   const blockedForever = result?.status === "denied" && !result.canAskAgain && Platform.OS !== "web";
   const isOff = result?.status === "off";

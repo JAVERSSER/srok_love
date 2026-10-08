@@ -17,6 +17,10 @@ export const endpoints = {
   refresh: "/api/accounts/auth/token/refresh/",
   register: "/api/accounts/auth/register/",
   changePassword: "/api/accounts/auth/change-password/",
+  // Forgot password: POST { email } emails a reset code; POST { email, code,
+  // new_password } sets the new password. Not on the backend yet, see README.
+  passwordReset: "/api/accounts/auth/password-reset/",
+  passwordResetConfirm: "/api/accounts/auth/password-reset/confirm/",
   profile: "/api/accounts/profile/",
   updateProfile: "/api/accounts/profile/update/",
   updateLocation: "/api/accounts/location/update/",

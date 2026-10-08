@@ -243,6 +243,7 @@ export default function RootLayout() {
               <Stack.Screen name="create-profile" />
               <Stack.Screen name="sign-up" />
               <Stack.Screen name="login" />
+              <Stack.Screen name="forgot-password" />
               <Stack.Screen name="(tabs)" />
               <Stack.Screen name="profile/[id]" options={{ presentation: "card" }} />
               <Stack.Screen name="chat/[id]" />

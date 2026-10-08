@@ -79,6 +79,12 @@ export default function Login() {
             returnKeyType="go"
           />
 
+          <GhostButton
+            label="Forgot password?"
+            onPress={() => router.push("/forgot-password")}
+            style={styles.forgot}
+          />
+
           {error ? <Text style={styles.error}>{error}</Text> : null}
 
           <PrimaryButton
@@ -104,6 +110,7 @@ const styles = StyleSheet.create({
   back: { alignSelf: "flex-start", paddingVertical: spacing.sm },
   header: { fontSize: font.h2, fontWeight: "800", color: colors.text },
   sub: { fontSize: font.body, color: colors.textSecondary, marginTop: 4 },
+  forgot: { alignSelf: "flex-end", paddingVertical: spacing.xs },
   error: { color: colors.danger, fontSize: font.small, marginTop: spacing.md },
   footer: {
     flexDirection: "row",
