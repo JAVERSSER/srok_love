@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  TextInput,
   Pressable,
 } from "react-native";
 import { useRouter } from "expo-router";
@@ -13,7 +12,7 @@ import { useAppStore } from "@/store/appStore";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { InterestTag } from "@/components/InterestTag";
 import { AvatarPicker, pickAvatarImage } from "@/components/AvatarPicker";
-import { PrimaryButton } from "@/components/ui";
+import { PrimaryButton, Input } from "@/components/ui";
 import { Gender, normalizeTelegram, normalizeFacebook } from "@/models";
 import { AUTH_DISABLED } from "@/constants/api";
 import { colors } from "@/constants/colors";
@@ -98,7 +97,7 @@ export default function EditProfile() {
         <PhotoManager />
 
         <Label text="Name" />
-        <TextInput style={styles.input} value={name} onChangeText={touch(setName)} />
+        <Input value={name} onChangeText={touch(setName)} />
 
         <Label text="Birthday" />
         <View style={[styles.input, styles.readOnly]}>
@@ -116,8 +115,8 @@ export default function EditProfile() {
         />
 
         <Label text="Bio" />
-        <TextInput
-          style={[styles.input, styles.textarea]}
+        <Input
+          style={styles.textarea}
           value={bio}
           onChangeText={touch(setBio)}
           multiline
@@ -127,10 +126,10 @@ export default function EditProfile() {
         <Chips options={provinces} value={province} onSelect={touch(setProvince)} />
 
         <Label text="Occupation" />
-        <TextInput style={styles.input} value={occupation} onChangeText={touch(setOccupation)} />
+        <Input value={occupation} onChangeText={touch(setOccupation)} />
 
         <Label text="Education" />
-        <TextInput style={styles.input} value={education} onChangeText={touch(setEducation)} />
+        <Input value={education} onChangeText={touch(setEducation)} />
 
         <Label text="Relationship intention" />
         <Chips options={relationshipGoals} value={goal} onSelect={touch(setGoal)} />
@@ -143,23 +142,19 @@ export default function EditProfile() {
         </View>
 
         <Label text="Telegram (optional)" />
-        <TextInput
-          style={styles.input}
+        <Input
           value={telegram}
           onChangeText={touch(setTelegram)}
           placeholder="@username"
-          placeholderTextColor={colors.textTertiary}
           autoCapitalize="none"
           autoCorrect={false}
         />
 
         <Label text="Facebook (optional)" />
-        <TextInput
-          style={styles.input}
+        <Input
           value={facebook}
           onChangeText={touch(setFacebook)}
           placeholder="facebook.com/username"
-          placeholderTextColor={colors.textTertiary}
           autoCapitalize="none"
           autoCorrect={false}
         />

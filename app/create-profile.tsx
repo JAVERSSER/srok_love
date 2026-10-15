@@ -1,11 +1,10 @@
-import React, { forwardRef, memo, useCallback, useRef, useState } from "react";
+import React, { memo, useCallback, useRef, useState } from "react";
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TextInput,
-  TextInputProps,
   Pressable,
   Platform,
   Alert,
@@ -17,7 +16,7 @@ import { useAppStore } from "@/store/appStore";
 import { AUTH_DISABLED } from "@/constants/api";
 import { colors } from "@/constants/colors";
 import { spacing, font, radius } from "@/constants/spacing";
-import { PrimaryButton } from "@/components/ui";
+import { PrimaryButton, Input } from "@/components/ui";
 import { InterestTag } from "@/components/InterestTag";
 import { AvatarPicker, pickAvatarImage } from "@/components/AvatarPicker";
 import {
@@ -81,12 +80,17 @@ export default function CreateProfile() {
   const dateOfBirth = savedDob ?? (dobError ? undefined : dateOfBirthToIso(dobInput) ?? undefined);
   const age = ageFromDob(dateOfBirth);
 
-  const valid =
-    name.trim().length > 1 &&
-    !!dateOfBirth &&
-    !!gender &&
-    !!province &&
-    !!goal;
+  // Everything a new user must fill in before they can use the app.
+  const missing = [
+    !photo && "profile photo",
+    name.trim().length <= 1 && "name",
+    !dateOfBirth && "date of birth",
+    !gender && "gender",
+    !province && "province",
+    !bio.trim() && "bio",
+    !goal && "relationship intention",
+  ].filter(Boolean) as string[];
+  const valid = missing.length === 0;
 
   const save = async () => {
     if (!valid || !gender || saving) return;
@@ -145,7 +149,9 @@ export default function CreateProfile() {
           keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
         >
           <Text style={styles.header}>Create your profile</Text>
-          <Text style={styles.sub}>Tell us a little about yourself.</Text>
+          <Text style={styles.sub}>
+            Add a photo and tell us a little about yourself to start using SrokLove.
+          </Text>
 
           <AvatarPicker uri={photo?.uri} onPick={pickPhoto} onRemove={() => setPhoto(null)} />
 
@@ -235,11 +241,17 @@ export default function CreateProfile() {
           <Label text="Interests" />
           <Interests selected={interests} onToggle={toggleInterest} />
 
+          {missing.length ? (
+            <Text style={[styles.error, { marginTop: spacing.xl }]}>
+              Please add your {missing.join(", ")}.
+            </Text>
+          ) : null}
+
           <PrimaryButton
             label={saving ? "Saving…" : "Start Swiping"}
             onPress={save}
             disabled={!valid || saving}
-            style={{ marginTop: spacing.xl }}
+            style={{ marginTop: missing.length ? spacing.md : spacing.xl }}
           />
           <View style={{ height: spacing.xxl }} />
         </ScrollView>
@@ -251,30 +263,6 @@ export default function CreateProfile() {
 function Label({ text }: { text: string }) {
   return <Text style={styles.label}>{text}</Text>;
 }
-
-// Keeps its own focus state so highlighting a field only re-renders that field.
-const Input = forwardRef<TextInput, TextInputProps>(function Input(
-  { style, onFocus, onBlur, ...props },
-  ref
-) {
-  const [focused, setFocused] = useState(false);
-  return (
-    <TextInput
-      ref={ref}
-      style={[styles.input, focused && styles.inputFocused, style]}
-      placeholderTextColor={colors.textTertiary}
-      onFocus={(e) => {
-        setFocused(true);
-        onFocus?.(e);
-      }}
-      onBlur={(e) => {
-        setFocused(false);
-        onBlur?.(e);
-      }}
-      {...props}
-    />
-  );
-});
 
 const Interests = memo(function Interests({
   selected,
@@ -338,20 +326,6 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
     marginBottom: spacing.sm,
   },
-  input: {
-    backgroundColor: colors.surfaceAlt,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    // 16px minimum: anything smaller makes iOS Safari zoom in on focus.
-    fontSize: 16,
-    color: colors.text,
-    borderWidth: 1,
-    borderColor: colors.border,
-    // The focused border replaces the browser's own focus ring.
-    ...Platform.select({ web: { outlineStyle: "none" } as object }),
-  },
-  inputFocused: { borderColor: colors.primary },
   inputLocked: { color: colors.textSecondary },
   readonlyHint: { fontSize: font.small, color: colors.textSecondary, marginTop: 4 },
   error: { fontSize: font.small, color: colors.danger, marginTop: 4 },

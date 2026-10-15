@@ -14,6 +14,7 @@ const SESSION_CHECK_MS = 30000;
 export default function TabsLayout() {
   const matchCount = useAppStore((s) => s.matches.length);
   const loggedIn = useAppStore((s) => s.loggedIn);
+  const onboarded = useAppStore((s) => s.onboarded);
   const unread = useAppStore((s) => s.conversations.reduce((n, c) => n + c.unread, 0));
   const hasLocation = useAppStore((s) => s.deviceCoords != null);
   const setDeviceCoords = useAppStore((s) => s.setDeviceCoords);
@@ -84,6 +85,8 @@ export default function TabsLayout() {
 
   // Also catches an expired session (the API logs the user out).
   if (!loggedIn) return <Redirect href="/" />;
+  // New accounts must create their profile (photo, name, bio...) first.
+  if (!onboarded) return <Redirect href="/create-profile" />;
   if (!hasLocation) return <LocationGate onReady={setDeviceCoords} />;
   // Everyone needs MIN_PHOTOS gallery photos before using the app.
   if (needsPhotos) return <Redirect href="/my-photos?required=1" />;

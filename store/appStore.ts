@@ -328,11 +328,18 @@ export const useAppStore = create<AppState>((set, get) => ({
   login: async (loginId, password) => {
     const user = await api.login(loginId, password);
     const sameAccount = get().account?.username === user.username;
+    // An account that registered but never finished its profile (no name yet)
+    // has to create one before using the app. If the check fails, don't lock
+    // an existing user out.
+    const hasProfile = await api
+      .getProfile()
+      .then((p) => !!p.name?.trim())
+      .catch(() => true);
     set({
       signedOutReason: null,
       account: { username: user.username, userId: user.id, createdAt: new Date().toISOString() },
       loggedIn: true,
-      onboarded: true,
+      onboarded: hasProfile,
       // Someone else's data must not carry over to this account.
       ...(sameAccount
         ? {}

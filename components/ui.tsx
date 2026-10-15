@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { forwardRef, useState } from "react";
 import {
   Text,
   Pressable,
@@ -8,6 +8,7 @@ import {
   TextStyle,
   TextInput,
   TextInputProps,
+  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors } from "@/constants/colors";
@@ -102,6 +103,39 @@ export function SectionTitle({ children, style }: { children: string; style?: Te
   return <Text style={[styles.section, style]}>{children}</Text>;
 }
 
+// Web only: hide the browser's square focus ring (our rounded border shows
+// focus instead) and fade border changes rather than snapping them.
+const webNoOutline = Platform.OS === "web" ? ({ outlineStyle: "none" } as object) : null;
+const webBorderFade =
+  Platform.OS === "web"
+    ? ({ transitionProperty: "border-color", transitionDuration: "150ms" } as object)
+    : null;
+
+// Plain bordered input. Keeps its own focus state so highlighting a field
+// only re-renders that field.
+export const Input = forwardRef<TextInput, TextInputProps>(function Input(
+  { style, onFocus, onBlur, ...props },
+  ref
+) {
+  const [focused, setFocused] = useState(false);
+  return (
+    <TextInput
+      ref={ref}
+      style={[styles.plainInput, focused && styles.inputFocused, style]}
+      placeholderTextColor={colors.textTertiary}
+      onFocus={(e) => {
+        setFocused(true);
+        onFocus?.(e);
+      }}
+      onBlur={(e) => {
+        setFocused(false);
+        onBlur?.(e);
+      }}
+      {...props}
+    />
+  );
+});
+
 export function TextField({
   label,
   error,
@@ -114,10 +148,17 @@ export function TextField({
   secure?: boolean;
 }) {
   const [hidden, setHidden] = useState(true);
+  const [focused, setFocused] = useState(false);
   return (
     <View style={styles.field}>
       <Text style={styles.fieldLabel}>{label}</Text>
-      <View style={[styles.inputWrap, !!error && styles.inputWrapError]}>
+      <View
+        style={[
+          styles.inputWrap,
+          focused && styles.inputFocused,
+          !!error && styles.inputWrapError,
+        ]}
+      >
         <TextInput
           style={[styles.input, style]}
           placeholderTextColor={colors.textTertiary}
@@ -125,6 +166,14 @@ export function TextField({
           autoCapitalize="none"
           autoCorrect={false}
           {...inputProps}
+          onFocus={(e) => {
+            setFocused(true);
+            inputProps.onFocus?.(e);
+          }}
+          onBlur={(e) => {
+            setFocused(false);
+            inputProps.onBlur?.(e);
+          }}
         />
         {secure ? (
           <Pressable
@@ -195,15 +244,31 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.border,
+    ...webBorderFade,
   },
+  inputFocused: { borderColor: colors.primary },
   inputWrapError: { borderColor: colors.danger },
   input: {
     flex: 1,
+    ...webNoOutline,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
     // 16px minimum: anything smaller makes iOS Safari zoom in on focus.
     fontSize: 16,
     color: colors.text,
+  },
+  plainInput: {
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    // 16px minimum: anything smaller makes iOS Safari zoom in on focus.
+    fontSize: 16,
+    color: colors.text,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...webNoOutline,
+    ...webBorderFade,
   },
   eye: { paddingHorizontal: spacing.md },
   fieldError: { color: colors.danger, fontSize: font.small, marginTop: spacing.xs },

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { View, Text, StyleSheet, useWindowDimensions, Pressable } from "react-native";
 import { Image } from "expo-image";
+import { DefaultAvatar } from "@/components/ProfilePhoto";
 import { Ionicons } from "@expo/vector-icons";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
@@ -124,12 +125,20 @@ export function ProfileCard({ user, onSwipe, onTap, isTop }: Props) {
         }}
       >
         <Pressable style={StyleSheet.absoluteFill} onPress={onTap}>
-          <Image
-            source={{ uri: galleryOf(user)[0] }}
-            style={styles.photo}
-            contentFit="cover"
-            transition={200}
-          />
+          {galleryOf(user)[0] ? (
+            <Image
+              source={{ uri: galleryOf(user)[0] }}
+              style={styles.photo}
+              contentFit="cover"
+              cachePolicy="memory-disk"
+              priority="high"
+              transition={200}
+            />
+          ) : (
+            <View style={[styles.photo, styles.noPhoto]}>
+              <DefaultAvatar size={160} />
+            </View>
+          )}
           <View style={styles.gradient} />
 
           <Animated.View style={[styles.badge, styles.likeBadge, likeStyle]}>
@@ -165,6 +174,7 @@ export function ProfileCard({ user, onSwipe, onTap, isTop }: Props) {
 }
 
 const styles = StyleSheet.create({
+  noPhoto: { alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceAlt },
   card: {
     ...StyleSheet.absoluteFillObject,
     borderRadius: radius.xl,

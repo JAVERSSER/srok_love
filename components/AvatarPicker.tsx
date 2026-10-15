@@ -7,6 +7,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { colors } from "@/constants/colors";
 import { spacing, font, shadow } from "@/constants/spacing";
 import type { LocalImage } from "@/services/api";
+import { DefaultAvatar } from "@/components/ProfilePhoto";
 
 const SIZE = 132;
 const RING = 4;
@@ -80,9 +81,9 @@ export function AvatarPicker({ uri, onPick, onRemove, busy, error }: Props) {
       >
         <View style={styles.avatar}>
           {uri ? (
-            <Image source={{ uri }} style={StyleSheet.absoluteFill} contentFit="cover" transition={200} />
+            <Image source={{ uri }} style={StyleSheet.absoluteFill} contentFit="cover" cachePolicy="memory-disk" transition={200} />
           ) : (
-            <Ionicons name="person" size={56} color={colors.primary} style={styles.placeholder} />
+            <DefaultAvatar size={SIZE} />
           )}
           {busy && (
             <View style={styles.busy}>
@@ -135,7 +136,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: colors.primarySoft,
   },
-  placeholder: { opacity: 0.6 },
   busy: {
     ...StyleSheet.absoluteFillObject,
     alignItems: "center",

@@ -14,6 +14,7 @@ import Animated, {
   type SharedValue,
 } from "react-native-reanimated";
 import { colors } from "@/constants/colors";
+import { DefaultAvatar } from "@/components/ProfilePhoto";
 import { spacing, font } from "@/constants/spacing";
 
 const AVATAR = 110;
@@ -116,9 +117,9 @@ export function RadarPulse({
         <Animated.View style={[styles.glow, glowStyle]} pointerEvents="none" />
         <Animated.View style={[styles.avatarWrap, avatarStyle]}>
           {photo ? (
-            <Image source={{ uri: photo }} style={styles.avatar} contentFit="cover" />
+            <Image source={{ uri: photo }} style={styles.avatar} contentFit="cover" cachePolicy="memory-disk" />
           ) : (
-            <View style={[styles.avatar, styles.avatarFallback]} />
+            <DefaultAvatar size={AVATAR - 8} style={styles.avatarFallback} />
           )}
         </Animated.View>
       </View>
@@ -259,7 +260,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceAlt,
   },
   avatar: { width: "100%", height: "100%" },
-  avatarFallback: { backgroundColor: colors.border },
+  // Fills the white ring, so drop its own rounding.
+  avatarFallback: { borderRadius: 0 },
   title: {
     fontSize: font.h3,
     fontWeight: "700",

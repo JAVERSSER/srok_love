@@ -16,8 +16,12 @@ interface Props {
   onInfo: () => void;
 }
 
-// Bottom fade made of stacked translucent bands (no gradient library needed).
-const FADE = [0.04, 0.08, 0.14, 0.22, 0.32, 0.42, 0.5];
+// No dark overlay on the photo: a soft shadow keeps the white text readable.
+const textShadow = {
+  textShadowColor: "rgba(0,0,0,0.6)",
+  textShadowOffset: { width: 0, height: 1 },
+  textShadowRadius: 6,
+};
 
 /**
  * Your profile as a Tinder-style card: tap the right side of the photo for the
@@ -80,12 +84,6 @@ export function PreviewCard({ user, photos, nameLine, locLine, onInfo }: Props) 
         </View>
       )}
 
-      <View style={styles.fade} pointerEvents="none">
-        {FADE.map((o, i) => (
-          <View key={i} style={{ flex: 1, backgroundColor: `rgba(0,0,0,${o})` }} />
-        ))}
-      </View>
-
       {/* Left half goes back, right half goes forward. */}
       <View style={styles.tapZones}>
         <Pressable style={{ flex: 1 }} onPress={() => step(-1)} accessibilityLabel="Previous photo" />
@@ -128,7 +126,6 @@ const styles = StyleSheet.create({
   },
   empty: { alignItems: "center", justifyContent: "center", gap: spacing.sm },
   emptyText: { fontSize: font.body, color: colors.textSecondary },
-  fade: { position: "absolute", left: 0, right: 0, bottom: 0, height: "45%" },
   tapZones: { ...StyleSheet.absoluteFillObject, flexDirection: "row" },
   bars: {
     position: "absolute",
@@ -150,8 +147,8 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   row: { flexDirection: "row", alignItems: "center", gap: 6 },
-  name: { fontSize: font.h1, fontWeight: "800", color: colors.white, flexShrink: 1 },
-  line: { fontSize: font.body, color: colors.white, fontWeight: "600", marginTop: 4, lineHeight: 20 },
+  name: { fontSize: font.h1, fontWeight: "800", color: colors.white, flexShrink: 1, ...textShadow },
+  line: { fontSize: font.body, color: colors.white, fontWeight: "600", marginTop: 4, lineHeight: 20, ...textShadow },
   tags: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: spacing.sm },
   infoBtn: {
     width: 36,

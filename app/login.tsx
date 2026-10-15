@@ -30,7 +30,7 @@ export default function Login() {
     setLoading(true);
     try {
       await login(username, password);
-      router.replace("/(tabs)/discover");
+      router.replace(useAppStore.getState().onboarded ? "/(tabs)/discover" : "/create-profile");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't log in. Please try again.");
     } finally {

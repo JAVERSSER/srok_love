@@ -53,6 +53,13 @@ export default function RootLayout() {
       @media (pointer: coarse) {
         input, textarea { font-size: 16px !important; }
       }
+      /* Chrome paints autofilled inputs blue/yellow; keep our own field colors. */
+      input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:focus {
+        -webkit-box-shadow: 0 0 0 1000px ${colors.surfaceAlt} inset;
+        -webkit-text-fill-color: ${colors.text};
+        caret-color: ${colors.text};
+        transition: background-color 9999s ease-out;
+      }
     `;
     document.head.appendChild(style);
 
@@ -240,7 +247,8 @@ export default function RootLayout() {
             <Stack screenOptions={{ headerShown: false }}>
               <Stack.Screen name="index" />
               <Stack.Screen name="onboarding" />
-              <Stack.Screen name="create-profile" />
+              {/* No swipe-back: the profile must be finished before using the app. */}
+              <Stack.Screen name="create-profile" options={{ gestureEnabled: false }} />
               <Stack.Screen name="sign-up" />
               <Stack.Screen name="login" />
               <Stack.Screen name="forgot-password" />

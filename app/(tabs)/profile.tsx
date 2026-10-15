@@ -13,6 +13,7 @@ import { spacing, font, radius, shadow } from "@/constants/spacing";
 import { useTabBarSpace } from "@/components/GlassTabBar";
 import { pickAvatarImage } from "@/components/AvatarPicker";
 import { PhotoPreview } from "@/components/PhotoPreview";
+import { DefaultAvatar } from "@/components/ProfilePhoto";
 import { SupportSheet } from "@/components/SupportSheet";
 import { ageFromDob } from "@/services/api";
 
@@ -75,11 +76,9 @@ export default function Profile() {
               style={({ pressed }) => pressed && { opacity: 0.85 }}
             >
               {photo ? (
-                <Image source={{ uri: photo }} style={styles.avatar} contentFit="cover" transition={200} />
+                <Image source={{ uri: photo }} style={styles.avatar} contentFit="cover" cachePolicy="memory-disk" transition={200} />
               ) : (
-                <View style={[styles.avatar, styles.avatarEmpty]}>
-                  <Ionicons name="person" size={48} color={colors.textTertiary} />
-                </View>
+                <DefaultAvatar size={110} style={shadow.soft} />
               )}
               {uploading && (
                 <View style={[styles.avatar, styles.avatarBusy]}>
@@ -167,7 +166,8 @@ export default function Profile() {
 
         {!!user.bio && (
           <View style={styles.bioBox}>
-            <Text style={styles.bio}>{user.bio}</Text>
+            <SectionTitle style={{ marginHorizontal: 0 }}>Bio</SectionTitle>
+            <Text style={[styles.bio, { marginTop: spacing.sm }]}>{user.bio}</Text>
           </View>
         )}
 
@@ -233,7 +233,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceAlt,
     ...shadow.soft,
   },
-  avatarEmpty: { alignItems: "center", justifyContent: "center" },
   avatarBusy: {
     position: "absolute",
     top: 0,
@@ -278,6 +277,7 @@ const styles = StyleSheet.create({
     borderColor: colors.primary,
   },
   editText: { color: colors.primary, fontWeight: "700", fontSize: font.body },
+  // Photos, bio and interests share one white block, with no grey gaps between them.
   photosBox: {
     backgroundColor: colors.background,
     marginTop: spacing.md,
@@ -301,14 +301,14 @@ const styles = StyleSheet.create({
   photosHint: { fontSize: font.small, color: colors.textSecondary, marginTop: spacing.md },
   bioBox: {
     backgroundColor: colors.background,
-    marginTop: spacing.md,
-    padding: spacing.xl,
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.xl,
   },
   bio: { fontSize: font.body, color: colors.text, lineHeight: 22 },
   interestsBox: {
     backgroundColor: colors.background,
-    marginTop: spacing.md,
-    padding: spacing.xl,
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.xl,
   },
   interests: { flexDirection: "row", flexWrap: "wrap", marginTop: spacing.sm },
   progressCard: {
