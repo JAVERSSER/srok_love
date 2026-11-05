@@ -13,7 +13,7 @@ import { ScreenHeader } from "@/components/ScreenHeader";
 import { InterestTag } from "@/components/InterestTag";
 import { AvatarPicker, pickAvatarImage } from "@/components/AvatarPicker";
 import { PrimaryButton, Input } from "@/components/ui";
-import { Gender, normalizeTelegram, normalizeFacebook } from "@/models";
+import { Gender } from "@/models";
 import { AUTH_DISABLED } from "@/constants/api";
 import { colors } from "@/constants/colors";
 import { spacing, font, radius } from "@/constants/spacing";
@@ -30,12 +30,8 @@ export default function EditProfile() {
   const [name, setName] = useState(user.name);
   const [bio, setBio] = useState(user.bio);
   const [province, setProvince] = useState(user.location);
-  const [occupation, setOccupation] = useState(user.occupation ?? "");
-  const [education, setEducation] = useState(user.education ?? "");
   const [goal, setGoal] = useState(user.relationshipGoal ?? relationshipGoals[0]);
   const [interests, setInterests] = useState<string[]>(user.interests);
-  const [telegram, setTelegram] = useState(user.telegram ?? "");
-  const [facebook, setFacebook] = useState(user.facebook ?? "");
   const [gender, setGender] = useState<Gender | undefined>(user.gender);
 
   // Fetch the latest profile when the screen opens, and refill the form with
@@ -53,12 +49,8 @@ export default function EditProfile() {
     setName(user.name);
     setBio(user.bio);
     setProvince(user.location);
-    setOccupation(user.occupation ?? "");
-    setEducation(user.education ?? "");
     setGoal(user.relationshipGoal ?? relationshipGoals[0]);
     setInterests(user.interests);
-    setTelegram(user.telegram ?? "");
-    setFacebook(user.facebook ?? "");
     setGender(user.gender);
   }, [user]);
 
@@ -74,13 +66,9 @@ export default function EditProfile() {
       name: name.trim() || user.name,
       bio: bio.trim(),
       location: province,
-      occupation,
-      education,
       relationshipGoal: goal,
       interests,
       gender,
-      telegram: normalizeTelegram(telegram) || undefined,
-      facebook: normalizeFacebook(facebook) || undefined,
       });
       router.back();
     } catch (e) {
@@ -125,12 +113,6 @@ export default function EditProfile() {
         <Label text="Province" />
         <Chips options={provinces} value={province} onSelect={touch(setProvince)} />
 
-        <Label text="Occupation" />
-        <Input value={occupation} onChangeText={touch(setOccupation)} />
-
-        <Label text="Education" />
-        <Input value={education} onChangeText={touch(setEducation)} />
-
         <Label text="Relationship intention" />
         <Chips options={relationshipGoals} value={goal} onSelect={touch(setGoal)} />
 
@@ -140,25 +122,6 @@ export default function EditProfile() {
             <InterestTag key={i} label={i} selected={interests.includes(i)} onPress={() => toggle(i)} />
           ))}
         </View>
-
-        <Label text="Telegram (optional)" />
-        <Input
-          value={telegram}
-          onChangeText={touch(setTelegram)}
-          placeholder="@username"
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
-
-        <Label text="Facebook (optional)" />
-        <Input
-          value={facebook}
-          onChangeText={touch(setFacebook)}
-          placeholder="facebook.com/username"
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
-        <Text style={styles.note}>Only people you match with can see these.</Text>
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
         <PrimaryButton

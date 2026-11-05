@@ -35,8 +35,6 @@ export function PreviewCard({ user, photos, nameLine, locLine, onInfo }: Props) 
 
   // What shows under the name for each photo.
   const details = [
-    user.occupation && { icon: "briefcase-outline" as const, text: user.occupation },
-    user.education && { icon: "school-outline" as const, text: user.education },
     user.height && { icon: "resize-outline" as const, text: user.height },
     user.relationshipGoal && { icon: "heart-outline" as const, text: user.relationshipGoal },
   ].filter(Boolean) as { icon: keyof typeof Ionicons.glyphMap; text: string }[];

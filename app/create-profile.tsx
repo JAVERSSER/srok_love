@@ -49,15 +49,11 @@ export default function CreateProfile() {
   const [gender, setGender] = useState<Gender | null>(null);
   const [province, setProvince] = useState("");
   const [bio, setBio] = useState("");
-  const [occupation, setOccupation] = useState("");
-  const [education, setEducation] = useState("");
   const [goal, setGoal] = useState("");
   const [interests, setInterests] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
 
   const dobRef = useRef<TextInput>(null);
-  const occupationRef = useRef<TextInput>(null);
-  const educationRef = useRef<TextInput>(null);
 
   const toggleInterest = useCallback(
     (i: string) =>
@@ -101,8 +97,6 @@ export default function CreateProfile() {
       gender,
       location: province,
       bio: bio.trim(),
-      occupation,
-      education,
       relationshipGoal: goal,
       interests,
     };
@@ -211,28 +205,6 @@ export default function CreateProfile() {
             placeholder="Love coffee & travel..."
             maxLength={300}
             multiline
-          />
-
-          <Label text="Occupation" />
-          <Input
-            ref={occupationRef}
-            value={occupation}
-            onChangeText={setOccupation}
-            placeholder="e.g. Designer"
-            autoCapitalize="words"
-            returnKeyType="next"
-            submitBehavior="submit"
-            onSubmitEditing={() => educationRef.current?.focus()}
-          />
-
-          <Label text="Education" />
-          <Input
-            ref={educationRef}
-            value={education}
-            onChangeText={setEducation}
-            placeholder="e.g. RUPP"
-            autoCapitalize="words"
-            returnKeyType="done"
           />
 
           <Label text="Relationship intention" />

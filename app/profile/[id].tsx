@@ -152,8 +152,6 @@ export default function ProfileDetail() {
     { icon: user.gender === "female" ? "female" : "male", label: "Gender", value: user.gender && (user.gender === "female" ? "Woman" : "Man") },
     { icon: "location-outline", label: "Lives in", value: [user.city, user.location].filter(Boolean).join(", ") || undefined },
     { icon: "resize-outline", label: "Height", value: user.height },
-    { icon: "briefcase-outline", label: "Work", value: user.occupation },
-    { icon: "school-outline", label: "Education", value: user.education },
     { icon: "heart-outline", label: "Looking for", value: user.relationshipGoal },
   ];
   // Height has no input in the app yet, so it's never listed as missing.
