@@ -573,6 +573,11 @@ export async function getMessages(roomId: number, myId: string | null): Promise<
   return Array.isArray(data) ? data.map((d) => toMessage(d, roomId, myId)) : [];
 }
 
+/** Sends a message over HTTP, for when the chat socket isn't available (web). */
+export async function sendMessage(roomId: number, text: string): Promise<Json> {
+  return request<Json>(endpoints.chatMessages(roomId), { body: { message: text } });
+}
+
 export async function markRead(roomId: number): Promise<void> {
   await request(endpoints.chatRead(roomId), { method: "POST" });
 }

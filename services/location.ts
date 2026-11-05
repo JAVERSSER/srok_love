@@ -1,4 +1,5 @@
 import * as Location from "expo-location";
+import { Platform } from "react-native";
 
 export interface Coords {
   latitude: number;
@@ -39,6 +40,7 @@ async function readPosition(): Promise<Coords> {
  * location permission if needed; without it, a missing permission is just reported.
  */
 export async function getDeviceLocation({ ask = true }: { ask?: boolean } = {}): Promise<LocationResult> {
+  if (Platform.OS === "web") return getWebLocation();
   try {
     const perm = ask
       ? await Location.requestForegroundPermissionsAsync()
@@ -49,6 +51,32 @@ export async function getDeviceLocation({ ask = true }: { ask?: boolean } = {}):
   } catch (e) {
     return { status: "error", message: e instanceof Error ? e.message : "Couldn't get your location." };
   }
+}
+
+// On web, a single navigator.geolocation call both asks for permission (only
+// if the browser hasn't already granted it) and returns the position. Asking
+// for permission first and then reading the position separately makes some
+// browsers (Safari especially) show the prompt twice.
+function getWebLocation(): Promise<LocationResult> {
+  if (typeof navigator === "undefined" || !navigator.geolocation) {
+    return Promise.resolve({ status: "off" });
+  }
+  return new Promise((resolve) => {
+    navigator.geolocation.getCurrentPosition(
+      (pos) =>
+        resolve({
+          status: "ok",
+          coords: { latitude: pos.coords.latitude, longitude: pos.coords.longitude },
+        }),
+      (err) => {
+        if (err.code === err.PERMISSION_DENIED) resolve({ status: "denied", canAskAgain: true });
+        else if (err.code === err.POSITION_UNAVAILABLE) resolve({ status: "off" });
+        else resolve({ status: "error", message: err.message || "Couldn't get your location." });
+      },
+      // Reuse a position up to 2 minutes old instead of waiting for a new GPS fix.
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: LAST_KNOWN_MAX_AGE_MS },
+    );
+  });
 }
 
 /** The current position without prompting, or null if location isn't available right now. */

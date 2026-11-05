@@ -17,6 +17,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useAppStore } from "@/store/appStore";
 import { sockets } from "@/constants/api";
 import { openSocket, LiveSocket, SocketStatus } from "@/services/socket";
+import * as api from "@/services/api";
 import { ProfilePhoto } from "@/components/ProfilePhoto";
 import { MessageBubble, BubblePosition } from "@/components/MessageBubble";
 import type { Message, UserProfile } from "@/models";
@@ -240,16 +241,25 @@ export default function Chat() {
   const send = () => {
     const trimmed = text.trim();
     if (!trimmed || roomId == null) return;
-    if (!socketRef.current?.send({ message: trimmed })) {
-      setError(
-        status === "unavailable"
-          ? "Sending messages isn't available in this browser version yet. Use the app instead."
-          : "Not connected. Check your connection and try again."
-      );
+    const { addPendingMessage, dropPendingMessage, receiveMessage } = useAppStore.getState();
+    if (status === "unavailable") {
+      // No socket (HTTPS web build): send over HTTP and swap in the saved copy.
+      addPendingMessage(roomId, trimmed);
+      api
+        .sendMessage(roomId, trimmed)
+        .then((data) => receiveMessage(roomId, data))
+        .catch((e) => {
+          dropPendingMessage(roomId, trimmed);
+          setText((t) => t || trimmed);
+          setError(e instanceof Error ? e.message : "Couldn't send. Try again.");
+        });
+    } else if (socketRef.current?.send({ message: trimmed })) {
+      addPendingMessage(roomId, trimmed);
+    } else {
+      setError("Not connected. Check your connection and try again.");
       return;
     }
     setError(null);
-    useAppStore.getState().addPendingMessage(roomId, trimmed);
     setText("");
     // Tapping the send button steals focus from the input, which closes the
     // keyboard. Refocusing within the same tap keeps it open so the user can
@@ -271,15 +281,13 @@ export default function Chat() {
     focusInput();
   };
 
-  const canSend = text.trim().length > 0 && roomId != null && status !== "unavailable";
+  const canSend = text.trim().length > 0 && roomId != null;
   const statusText =
     roomId == null || status === "connecting"
       ? "Connecting…"
       : status === "closed"
         ? "Reconnecting…"
-        : status === "unavailable"
-          ? "Read only in the browser"
-          : null;
+        : null;
 
   return (
     <SafeAreaView style={styles.container} edges={["top", "bottom"]}>

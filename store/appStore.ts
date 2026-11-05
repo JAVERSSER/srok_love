@@ -128,6 +128,8 @@ interface AppState {
   loadMessages: (roomId: number) => Promise<void>;
   // A message as sent over the socket, shown until the server echoes it.
   addPendingMessage: (roomId: number, text: string) => void;
+  // Removes a pending message that failed to send.
+  dropPendingMessage: (roomId: number, text: string) => void;
   // A raw message payload from the chat socket.
   receiveMessage: (roomId: number, data: Record<string, unknown>) => void;
   markRoomRead: (roomId: number) => Promise<void>;
@@ -620,6 +622,14 @@ export const useAppStore = create<AppState>((set, get) => ({
       pending: true,
     };
     set((s) => ({ messages: [...s.messages, msg] }));
+  },
+
+  dropPendingMessage: (roomId, text) => {
+    const key = String(roomId);
+    set((s) => {
+      const i = s.messages.findIndex((m) => m.pending && m.conversationId === key && m.text === text);
+      return i >= 0 ? { messages: s.messages.filter((_, j) => j !== i) } : {};
+    });
   },
 
   receiveMessage: (roomId, data) => {
