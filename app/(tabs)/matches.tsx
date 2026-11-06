@@ -54,13 +54,15 @@ export default function Matches() {
         contentContainerStyle={{ padding: spacing.lg, paddingBottom: tabBarSpace }}
         renderItem={({ item: { user: u, match } }) => {
           const last = conversations.find((c) => c.roomId === match.roomId)?.lastMessage;
+          // The server may not have opened a chat room yet.
+          const hasRoom = match.roomId != null || conversations.some((c) => c.otherUserId === u.id);
           return (
-            <Pressable style={styles.row} onPress={() => router.push(`/chat/${u.id}`)}>
+            <Pressable style={styles.row} onPress={() => router.push(hasRoom ? `/chat/${u.id}` : `/profile/${u.id}`)}>
               <ProfilePhoto uri={avatarOf(u)} size={60} />
               <View style={styles.info}>
                 <Text style={styles.name}>{u.name}</Text>
                 <Text style={styles.preview} numberOfLines={1}>
-                  {last ?? "You matched! Say hello 👋"}
+                  {last ?? (hasRoom ? "You matched! Say hello 👋" : "You matched!")}
                 </Text>
               </View>
             </Pressable>

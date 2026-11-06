@@ -14,11 +14,13 @@ import Animated, {
 interface Props {
   match: UserProfile | null;
   mePhoto: string;
+  /** False until the server has opened a chat room for the match. */
+  canMessage: boolean;
   onMessage: () => void;
   onKeepDiscovering: () => void;
 }
 
-export function MatchModal({ match, mePhoto, onMessage, onKeepDiscovering }: Props) {
+export function MatchModal({ match, mePhoto, canMessage, onMessage, onKeepDiscovering }: Props) {
   const scale = useSharedValue(0.6);
   const opacity = useSharedValue(0);
 
@@ -56,9 +58,11 @@ export function MatchModal({ match, mePhoto, onMessage, onKeepDiscovering }: Pro
             />
           </View>
 
-          <Pressable style={styles.primaryBtn} onPress={onMessage}>
-            <Text style={styles.primaryText}>Send Message</Text>
-          </Pressable>
+          {canMessage ? (
+            <Pressable style={styles.primaryBtn} onPress={onMessage}>
+              <Text style={styles.primaryText}>Send Message</Text>
+            </Pressable>
+          ) : null}
           <Pressable style={styles.secondaryBtn} onPress={onKeepDiscovering}>
             <Text style={styles.secondaryText}>Keep Swiping</Text>
           </Pressable>

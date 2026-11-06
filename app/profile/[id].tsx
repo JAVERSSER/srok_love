@@ -44,6 +44,8 @@ export default function ProfileDetail() {
   const blockUser = useAppStore((s) => s.blockUser);
   const reportUser = useAppStore((s) => s.reportUser);
   const isMatch = useAppStore((s) => s.matches.some((m) => m.matchedUserId === id));
+  // A match's chat room can be missing; there's nothing to open until it exists.
+  const hasRoom = useAppStore((s) => s.getRoomId(id) != null);
 
   // "/profile/me" previews your own profile exactly as other people see it.
   const isPreview = id === "me";
@@ -151,11 +153,8 @@ export default function ProfileDetail() {
     { icon: "hourglass-outline", label: "Age", value: hideAge || !(age > 0) ? undefined : `${age} years old` },
     { icon: user.gender === "female" ? "female" : "male", label: "Gender", value: user.gender && (user.gender === "female" ? "Woman" : "Man") },
     { icon: "location-outline", label: "Lives in", value: [user.city, user.location].filter(Boolean).join(", ") || undefined },
-    { icon: "resize-outline", label: "Height", value: user.height },
-    { icon: "heart-outline", label: "Looking for", value: user.relationshipGoal },
   ];
-  // Height has no input in the app yet, so it's never listed as missing.
-  const shownBasics = basics.filter((b) => b.value || (isPreview && b.label !== "Height"));
+  const shownBasics = basics.filter((b) => b.value || isPreview);
 
   // Profile sections. Photos only show in the top photo; tap its sides to move through them.
   const sections: React.ReactNode[] = [
@@ -343,9 +342,11 @@ export default function ProfileDetail() {
             <Text style={styles.editPillText}>Edit Profile</Text>
           </Pressable>
         ) : isMatch ? (
-          <Pressable style={[styles.circle, styles.likeCircle]} onPress={() => router.push(`/chat/${user.id}`)}>
-            <Ionicons name="chatbubble" size={28} color={colors.white} />
-          </Pressable>
+          hasRoom ? (
+            <Pressable style={[styles.circle, styles.likeCircle]} onPress={() => router.push(`/chat/${user.id}`)}>
+              <Ionicons name="chatbubble" size={28} color={colors.white} />
+            </Pressable>
+          ) : null
         ) : (
           <>
             <Pressable style={[styles.circle, styles.passCircle]} onPress={doPass}>

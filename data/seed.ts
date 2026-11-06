@@ -11,9 +11,5 @@ export const defaultCurrentUser: UserProfile = {
   bio: "",
   photos: [],
   interests: [],
-  occupation: "",
-  education: "",
-  height: "",
-  relationshipGoal: "",
   verified: false,
 };

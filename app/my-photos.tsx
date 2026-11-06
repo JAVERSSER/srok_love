@@ -52,14 +52,19 @@ export default function MyPhotos() {
       return;
     }
     const doRemove = () => run(id, () => removePhoto(id));
-    if (Platform.OS === "web") return doRemove();
-    Alert.alert("Remove photo?", "It will no longer show on your profile.", [
+    // Alert.alert's buttons don't show on web.
+    if (Platform.OS === "web") {
+      if (window.confirm("Remove photo? It will be permanently deleted.")) doRemove();
+      return;
+    }
+    Alert.alert("Remove photo?", "It will be permanently deleted.", [
       { text: "Cancel", style: "cancel" },
       { text: "Remove", style: "destructive", onPress: doRemove },
     ]);
   };
 
-  const slots = Array.from({ length: MAX_PHOTOS }, (_, i) => photos[i]);
+  // Accounts from before the limit may have more photos than MAX_PHOTOS.
+  const slots = Array.from({ length: Math.max(MAX_PHOTOS, photos.length) }, (_, i) => photos[i]);
   const firstEmpty = photos.length;
   const missing = Math.max(0, MIN_PHOTOS - photos.length);
 

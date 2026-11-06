@@ -34,11 +34,6 @@ export function PreviewCard({ user, photos, nameLine, locLine, onInfo }: Props) 
   const step = (by: number) => setIndex(Math.max(0, Math.min(photos.length - 1, current + by)));
 
   // What shows under the name for each photo.
-  const details = [
-    user.height && { icon: "resize-outline" as const, text: user.height },
-    user.relationshipGoal && { icon: "heart-outline" as const, text: user.relationshipGoal },
-  ].filter(Boolean) as { icon: keyof typeof Ionicons.glyphMap; text: string }[];
-
   const pages: React.ReactNode[] = [
     locLine ? (
       <View key="loc" style={styles.row}>
@@ -55,16 +50,6 @@ export function PreviewCard({ user, photos, nameLine, locLine, onInfo }: Props) 
       <View key="interests" style={styles.tags}>
         {user.interests.slice(0, 5).map((i) => (
           <InterestTag key={i} label={i} />
-        ))}
-      </View>
-    ) : null,
-    details.length ? (
-      <View key="details" style={{ gap: 4 }}>
-        {details.map((d) => (
-          <View key={d.text} style={styles.row}>
-            <Ionicons name={d.icon} size={16} color={colors.white} />
-            <Text style={styles.line}>{d.text}</Text>
-          </View>
         ))}
       </View>
     ) : null,

@@ -117,8 +117,8 @@ interface AppState {
   // Returns the users we newly matched with since the last refresh.
   refreshMatches: () => Promise<UserProfile[]>;
   refreshChats: () => Promise<void>;
-  // Called when the match socket reports a new match.
-  onMatchEvent: () => Promise<void>;
+  // A raw frame from the match socket.
+  onMatchEvent: (frame: Record<string, unknown>) => void;
 
   likeUser: (targetId: string) => Promise<boolean>; // resolves to isMatch
   passUser: (targetId: string) => Promise<void>;
@@ -130,6 +130,9 @@ interface AppState {
   addPendingMessage: (roomId: number, text: string) => void;
   // Removes a pending message that failed to send.
   dropPendingMessage: (roomId: number, text: string) => void;
+  // Removes the room's oldest pending message, the one a socket error frame
+  // refers to, and returns its text so it can go back in the draft.
+  takePendingMessage: (roomId: number) => string | null;
   // A raw message payload from the chat socket.
   receiveMessage: (roomId: number, data: Record<string, unknown>) => void;
   markRoomRead: (roomId: number) => Promise<void>;
@@ -196,11 +199,13 @@ function mergeUsers(existing: UserProfile[], incoming: UserProfile[]): UserProfi
   return [...byId.values()];
 }
 
-export const MAX_PHOTOS = 9;
+// The server refuses a 7th photo.
+export const MAX_PHOTOS = 6;
 // Everyone needs at least this many gallery photos to use the app.
 export const MIN_PHOTOS = 2;
 
-// Sends the gallery's order to the server, then mirrors it locally.
+// Sends the gallery to the server, then mirrors it locally. Photos left out are
+// permanently deleted, so `photos` must come from a fresh copy of the server's list.
 async function savePhotos(photos: ProfilePhoto[]) {
   if (!AUTH_DISABLED) await api.assignPhotos(photos.map((p) => p.id));
   useAppStore.setState((s) => ({
@@ -213,6 +218,35 @@ async function savePhotos(photos: ProfilePhoto[]) {
 function byTime(a: Message, b: Message) {
   return a.createdAt.localeCompare(b.createdAt);
 }
+
+// Shows the match popup and adds a notification for each new match.
+function announceMatches(fresh: UserProfile[]) {
+  if (!fresh.length) return;
+  useAppStore.setState((s) => ({
+    lastMatch: s.lastMatch ?? fresh[0],
+    notifications: [
+      ...fresh.map((u) => ({
+        id: `notif_match_${u.id}_${Date.now()}`,
+        type: "match" as const,
+        text: `You matched with ${u.name}!`,
+        createdAt: new Date().toISOString(),
+        read: false,
+      })),
+      ...s.notifications,
+    ],
+  }));
+  persist(useAppStore.getState());
+  useAppStore.getState().refreshChats().catch(() => {});
+}
+
+// What a session leaves behind on this device; the profile is kept.
+const signedOutState = {
+  loggedIn: false,
+  lastMatch: null,
+  messages: [],
+  conversations: [],
+  photosLoaded: AUTH_DISABLED,
+};
 
 export const useAppStore = create<AppState>((set, get) => ({
   hydrated: false,
@@ -245,9 +279,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   hydrate: async () => {
     if ((await storage.get<number>(KEYS.dataVersion)) !== DATA_VERSION) {
       await storage.clearAll();
-      await api.clearTokens();
       await storage.set(KEYS.dataVersion, DATA_VERSION);
     }
+    // Older builds saved tokens here; auth is cookies only now.
+    await storage.remove(KEYS.tokens);
 
     const [
       onboarded,
@@ -292,8 +327,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       users: users ?? [],
       likes: likes ?? [],
       passes: passes ?? [],
-      // Matches saved by older builds have no chat room; they're refetched.
-      matches: (matches ?? []).filter((m) => m.roomId != null),
+      matches: matches ?? [],
       preference: preference ?? defaultPreference,
       privacy: privacy ?? defaultPrivacy,
       blocked: blocked ?? [],
@@ -366,8 +400,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   // Ends the session but keeps the profile on this device.
   logout: () => {
     // Forget this phone's push token first, while the session can still do it.
-    unregisterPush().finally(() => api.clearTokens());
-    set({ loggedIn: false, lastMatch: null, messages: [], conversations: [], photosLoaded: AUTH_DISABLED });
+    api.logout(unregisterPush);
+    set(signedOutState);
     persist(get());
   },
 
@@ -405,22 +439,56 @@ export const useAppStore = create<AppState>((set, get) => ({
   addPhotos: async (images) => {
     const room = MAX_PHOTOS - get().myPhotos.length;
     if (room <= 0) throw new Error(`You can add up to ${MAX_PHOTOS} photos.`);
-    const results = await Promise.allSettled(
-      images.slice(0, room).map((image, i) =>
-        AUTH_DISABLED ? Promise.resolve({ id: Date.now() + i, url: image.uri }) : api.uploadPhoto(image)
-      )
-    );
-    const uploaded = results.flatMap((r) => (r.status === "fulfilled" ? [{ id: r.value.id, url: r.value.url }] : []));
-    if (uploaded.length) await savePhotos([...get().myPhotos, ...uploaded]);
-    const failed = results.length - uploaded.length;
-    if (failed) throw new Error(`${failed} photo${failed > 1 ? "s" : ""} couldn't be uploaded. Please try again.`);
+    const batch = images.slice(0, room);
+    if (AUTH_DISABLED) {
+      await savePhotos([...get().myPhotos, ...batch.map((image, i) => ({ id: Date.now() + i, url: image.uri }))]);
+      return;
+    }
+    // An upload lands on the profile by itself. One at a time keeps the order
+    // the user picked them in.
+    const uploaded: ProfilePhoto[] = [];
+    let firstError: unknown;
+    for (const image of batch) {
+      try {
+        const { id, url } = await api.uploadPhoto(image);
+        uploaded.push({ id, url });
+      } catch (e) {
+        firstError ??= e;
+        // Rate limited: the rest would fail the same way.
+        if (e instanceof api.ApiError && e.status === 429) break;
+      }
+    }
+    if (uploaded.length) {
+      await get()
+        .loadMyProfile()
+        .catch(() => {
+          const photos = [...get().myPhotos, ...uploaded];
+          set((s) => ({ myPhotos: photos, currentUser: { ...s.currentUser, photos: photos.map((p) => p.url) } }));
+          persist(get());
+        });
+    }
+    if (firstError !== undefined) {
+      const failed = batch.length - uploaded.length;
+      const reason =
+        firstError instanceof api.ApiError && firstError.status >= 400 && firstError.status < 500
+          ? firstError.message
+          : "Please try again.";
+      throw new Error(`${failed} photo${failed > 1 ? "s" : ""} couldn't be uploaded. ${reason}`);
+    }
   },
 
   removePhoto: async (id) => {
     if (get().myPhotos.length <= MIN_PHOTOS) {
       throw new Error(`You need at least ${MIN_PHOTOS} photos. Add another before removing this one.`);
     }
-    await savePhotos(get().myPhotos.filter((p) => p.id !== id));
+    // Assigning deletes whatever is left out, so start from the server's list:
+    // this device may not know about a photo added elsewhere.
+    if (!AUTH_DISABLED) await get().loadMyProfile();
+    const remaining = get().myPhotos.filter((p) => p.id !== id);
+    if (remaining.length < MIN_PHOTOS) {
+      throw new Error(`You need at least ${MIN_PHOTOS} photos. Add another before removing this one.`);
+    }
+    await savePhotos(remaining);
   },
 
   updateCurrentUser: (patch) => {
@@ -468,9 +536,6 @@ export const useAppStore = create<AppState>((set, get) => ({
         facebook: p.facebook ?? s.currentUser.facebook,
         bio: p.bio ?? s.currentUser.bio,
         location: p.location ?? s.currentUser.location,
-        occupation: p.occupation ?? s.currentUser.occupation,
-        education: p.education ?? s.currentUser.education,
-        relationshipGoal: p.relationshipGoal ?? s.currentUser.relationshipGoal,
         avatar: p.avatarUrl || s.currentUser.avatar,
         photos: gallery.map((g) => g.url),
       },
@@ -518,24 +583,20 @@ export const useAppStore = create<AppState>((set, get) => ({
     }));
   },
 
-  onMatchEvent: async () => {
-    const fresh = await get().refreshMatches();
-    if (!fresh.length) return;
+  onMatchEvent: (frame) => {
+    const event = api.parseMatchEvent(frame);
+    if (!event) return;
+    const { match, user } = event;
+    // The swipe that made this match may have found it already.
+    const known = get().matches.some((m) => m.matchedUserId === user.id);
     set((s) => ({
-      lastMatch: s.lastMatch ?? fresh[0],
-      notifications: [
-        ...fresh.map((u) => ({
-          id: `notif_match_${u.id}_${Date.now()}`,
-          type: "match" as const,
-          text: `You matched with ${u.name}!`,
-          createdAt: new Date().toISOString(),
-          read: false,
-        })),
-        ...s.notifications,
-      ],
+      users: mergeUsers(s.users, [user]),
+      matches: known
+        ? s.matches.map((m) => (m.matchedUserId === user.id ? { ...m, roomId: match.roomId ?? m.roomId } : m))
+        : [match, ...s.matches],
     }));
     persist(get());
-    get().refreshChats().catch(() => {});
+    if (!known) announceMatches([get().getUserById(user.id) ?? user]);
   },
 
   likeUser: async (targetId) => {
@@ -552,27 +613,18 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
     if (AUTH_DISABLED) return false;
 
+    try {
+      await api.swipe(targetId, "like");
+    } catch (e) {
+      // Not recorded (rate limited, offline...): bring the card back.
+      set((s) => ({ likes: s.likes.filter((l) => !(l.userId === "me" && l.targetId === targetId)) }));
+      persist(get());
+      throw e;
+    }
     // The swipe response doesn't say whether it matched, so check the match list.
-    await api.swipe(targetId, "like");
     const fresh = await get().refreshMatches();
     const matched = fresh.find((u) => u.id === targetId);
-    if (matched) {
-      set((s) => ({
-        lastMatch: matched,
-        notifications: [
-          {
-            id: `notif_match_${matched.id}_${Date.now()}`,
-            type: "match",
-            text: `You matched with ${matched.name}!`,
-            createdAt: new Date().toISOString(),
-            read: false,
-          },
-          ...s.notifications,
-        ],
-      }));
-      persist(get());
-      get().refreshChats().catch(() => {});
-    }
+    if (matched) announceMatches([matched]);
     return !!matched;
   },
 
@@ -581,7 +633,14 @@ export const useAppStore = create<AppState>((set, get) => ({
       passes: s.passes.includes(targetId) ? s.passes : [...s.passes, targetId],
     }));
     persist(get());
-    if (!AUTH_DISABLED) await api.swipe(targetId, "pass");
+    if (AUTH_DISABLED) return;
+    try {
+      await api.swipe(targetId, "pass");
+    } catch (e) {
+      set((s) => ({ passes: s.passes.filter((id) => id !== targetId) }));
+      persist(get());
+      throw e;
+    }
   },
 
   getRoomId: (otherUserId) => {
@@ -630,6 +689,13 @@ export const useAppStore = create<AppState>((set, get) => ({
       const i = s.messages.findIndex((m) => m.pending && m.conversationId === key && m.text === text);
       return i >= 0 ? { messages: s.messages.filter((_, j) => j !== i) } : {};
     });
+  },
+
+  takePendingMessage: (roomId) => {
+    const pending = get().messages.find((m) => m.pending && m.conversationId === String(roomId));
+    if (!pending) return null;
+    set((s) => ({ messages: s.messages.filter((m) => m !== pending) }));
+    return pending.text;
   },
 
   receiveMessage: (roomId, data) => {
@@ -727,7 +793,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     }));
     persist(get());
     if (AUTH_DISABLED) return;
-    if (data.type === "match") get().onMatchEvent().catch(() => {});
+    if (data.type === "match") get().refreshMatches().then(announceMatches).catch(() => {});
     if (data.type === "message") get().refreshChats().catch(() => {});
   },
 
@@ -745,7 +811,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   getDiscoverQueue: () => {
     const s = get();
     const blockedIds = new Set(s.blocked.map((b) => b.userId));
-    // Discover keeps returning people we've already swiped on.
+    // The server drops swiped people from discover too, but discoverIds only
+    // catches up on the next refresh.
     const swiped = new Set([
       ...s.likes.filter((l) => l.userId === "me").map((l) => l.targetId),
       ...s.passes,
@@ -769,16 +836,15 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 }));
 
-// If the server rejects the session (an account can only be logged in on one
-// device, so logging in elsewhere ends this one, as does the refresh token
-// expiring), drop back to the welcome/login flow and say why.
+// If the server ends the session (an account can only be logged in on one
+// device, so logging in elsewhere ends this one, as do a password reset and the
+// refresh token expiring), drop back to the welcome/login flow and say why. No
+// logout call: the account's current session may be on another device.
 api.setOnSessionExpired(() => {
-  if (AUTH_DISABLED) return;
-  const { loggedIn, logout } = useAppStore.getState();
-  if (!loggedIn) return;
-  logout();
+  if (AUTH_DISABLED || !useAppStore.getState().loggedIn) return;
   useAppStore.setState({
-    signedOutReason:
-      "You've been logged out because your account was logged in on another device. Log in again to continue here.",
+    ...signedOutState,
+    signedOutReason: "Your session has ended on this device. Log in again to continue.",
   });
+  persist(useAppStore.getState());
 });

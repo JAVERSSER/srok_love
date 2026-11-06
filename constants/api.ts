@@ -15,10 +15,11 @@ export const API_BASE_URL = useProxy ? "" : API_ORIGIN;
 export const endpoints = {
   login: "/api/accounts/auth/login/",
   refresh: "/api/accounts/auth/token/refresh/",
+  logout: "/api/accounts/auth/logout/",
   register: "/api/accounts/auth/register/",
   changePassword: "/api/accounts/auth/change-password/",
   // Forgot password: POST { email } emails a reset code; POST { email, code,
-  // new_password } sets the new password. Not on the backend yet, see README.
+  // new_password } sets the new password. See PASSWORD_RESET_AVAILABLE below.
   passwordReset: "/api/accounts/auth/password-reset/",
   passwordResetConfirm: "/api/accounts/auth/password-reset/confirm/",
   profile: "/api/accounts/profile/",
@@ -48,11 +49,23 @@ export const sockets = {
   match: `${WS_ORIGIN}/ws/match/`,
 } as const;
 
-// Sockets authenticate with the session cookies. Behind the web proxy those
-// belong to our own origin, so the browser won't send them to the backend's
-// socket (and an HTTPS page can't open ws:// at all). Until the backend is
-// served from the same site with TLS, web chat is read-only and polls.
-export const SOCKETS_AVAILABLE = !useProxy;
+// Sockets authenticate with the session cookies. On slanh.site, api/proxy.js
+// shares those cookies with the backend's subdomain, so sockets work. Other web
+// hosts (localhost, Vercel previews) can't share them, so chat polls there.
+const sharesCookiesWithBackend =
+  Platform.OS === "web" &&
+  typeof window !== "undefined" &&
+  /(^|\.)slanh\.site$/.test(window.location.hostname);
+
+export const SOCKETS_AVAILABLE = !useProxy || sharesCookiesWithBackend;
+
+// The Origin header native apps send on sockets; the backend refuses
+// connections without an allowed one. Override with EXPO_PUBLIC_SOCKET_ORIGIN.
+export const SOCKET_ORIGIN = process.env.EXPO_PUBLIC_SOCKET_ORIGIN ?? API_ORIGIN;
+
+// The backend can't deliver reset codes by email or SMS yet, so the flow can't
+// be finished in production. Set to true once delivery ships.
+export const PASSWORD_RESET_AVAILABLE = false;
 
 // Temporary switch for UI testing: skips login/sign-up and treats the app as
 // logged in. Set back to false to re-enable the real auth flow.

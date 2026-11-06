@@ -17,7 +17,7 @@ import { Gender } from "@/models";
 import { AUTH_DISABLED } from "@/constants/api";
 import { colors } from "@/constants/colors";
 import { spacing, font, radius } from "@/constants/spacing";
-import { provinces, interestOptions, relationshipGoals } from "@/constants/provinces";
+import { provinces, interestOptions } from "@/constants/provinces";
 
 export default function EditProfile() {
   const router = useRouter();
@@ -30,7 +30,6 @@ export default function EditProfile() {
   const [name, setName] = useState(user.name);
   const [bio, setBio] = useState(user.bio);
   const [province, setProvince] = useState(user.location);
-  const [goal, setGoal] = useState(user.relationshipGoal ?? relationshipGoals[0]);
   const [interests, setInterests] = useState<string[]>(user.interests);
   const [gender, setGender] = useState<Gender | undefined>(user.gender);
 
@@ -49,7 +48,6 @@ export default function EditProfile() {
     setName(user.name);
     setBio(user.bio);
     setProvince(user.location);
-    setGoal(user.relationshipGoal ?? relationshipGoals[0]);
     setInterests(user.interests);
     setGender(user.gender);
   }, [user]);
@@ -66,7 +64,6 @@ export default function EditProfile() {
       name: name.trim() || user.name,
       bio: bio.trim(),
       location: province,
-      relationshipGoal: goal,
       interests,
       gender,
       });
@@ -112,9 +109,6 @@ export default function EditProfile() {
 
         <Label text="Province" />
         <Chips options={provinces} value={province} onSelect={touch(setProvince)} />
-
-        <Label text="Relationship intention" />
-        <Chips options={relationshipGoals} value={goal} onSelect={touch(setGoal)} />
 
         <Label text="Interests" />
         <View style={styles.interests}>

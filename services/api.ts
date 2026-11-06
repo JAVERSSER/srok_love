@@ -1,79 +1,71 @@
 import { Platform } from "react-native";
 import { API_BASE_URL, API_ORIGIN, endpoints } from "@/constants/api";
-import { storage, KEYS } from "@/services/storage";
 import type { Conversation, Gender, Match, Message, UserProfile } from "@/models";
 
 // HTTP client for the Django backend.
 //
-// The backend authenticates with the `access_token` / `refresh_token` cookies
-// it sets on login, so every request is sent with cookies
-// (`credentials: "include"`). If it ever returns tokens in the JSON body too,
-// we also send an `Authorization: Bearer` header.
+// Auth lives in the HttpOnly `access_token` / `refresh_token` cookies the backend
+// sets on login. JavaScript can't read them, so every request just has to send
+// cookies (`credentials: "include"`).
 
 const TIMEOUT_MS = 20000;
+
+/** The server refuses bigger requests with 413. */
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 
 export class ApiError extends Error {
   constructor(
     message: string,
     public status: number,
-    public data?: unknown
+    public data?: unknown,
+    /** Seconds to wait, from the Retry-After header of a 429. */
+    public retryAfter?: number
   ) {
     super(message);
     this.name = "ApiError";
   }
 }
 
-interface Tokens {
-  access: string | null;
-  refresh: string | null;
-}
-
-let tokens: Tokens = { access: null, refresh: null };
-let tokensLoaded = false;
-let refreshing: Promise<boolean> | null = null;
+let refreshing: Promise<RefreshResult> | null = null;
+let loggingOut: Promise<unknown> = Promise.resolve();
 let onSessionExpired: (() => void) | null = null;
 
-/** Called when the refresh token is rejected and the user must log in again. */
+/** Called when the server has ended this session and the user must log in again. */
 export function setOnSessionExpired(fn: () => void) {
   onSessionExpired = fn;
 }
 
-async function loadTokens() {
-  if (tokensLoaded) return;
-  tokens = (await storage.get<Tokens>(KEYS.tokens)) ?? { access: null, refresh: null };
-  tokensLoaded = true;
-}
-
-async function saveTokens(next: Tokens) {
-  tokens = next;
-  tokensLoaded = true;
-  await storage.set(KEYS.tokens, next);
-}
-
-export async function clearTokens() {
-  await saveTokens({ access: null, refresh: null });
+/** Sends the user to login, e.g. when a socket closes with code 4001. */
+export function expireSession() {
+  onSessionExpired?.();
 }
 
 // --- response helpers -------------------------------------------------------
 
 type Json = Record<string, any>;
 
-// Accepts the common shapes: { access, refresh }, { access_token, ... },
-// { tokens: {...} } and { data: {...} }.
-function extractTokens(data: Json | null): Partial<Tokens> {
-  if (!data || typeof data !== "object") return {};
-  const src: Json = data.tokens ?? data.data?.tokens ?? data.data ?? data;
-  const access = src.access ?? src.access_token ?? data.access ?? data.access_token;
-  const refresh = src.refresh ?? src.refresh_token ?? data.refresh ?? data.refresh_token;
-  return {
-    ...(typeof access === "string" ? { access } : {}),
-    ...(typeof refresh === "string" ? { refresh } : {}),
-  };
+function formatWait(seconds: number): string {
+  const plural = (n: number, unit: string) => `${n} ${unit}${n === 1 ? "" : "s"}`;
+  if (seconds < 60) return plural(Math.ceil(seconds), "second");
+  if (seconds < 3600) return plural(Math.ceil(seconds / 60), "minute");
+  return plural(Math.ceil(seconds / 3600), "hour");
 }
 
-// Turns DRF error bodies ({ detail }, { non_field_errors: [] },
-// { field: ["msg"] }) into one readable sentence.
-function errorMessage(data: unknown, status: number): string {
+// The framework's stock detail is replaced with a friendlier wait message; any
+// other detail (e.g. the swipe limit's) is meant for the user as it is.
+function rateLimitMessage(data: unknown, retryAfter?: number): string {
+  const detail = data && typeof data === "object" ? (data as Json).detail : undefined;
+  if (typeof detail === "string" && detail && !detail.startsWith("Request was throttled")) return detail;
+  return retryAfter
+    ? `Too many attempts. Please try again in ${formatWait(retryAfter)}.`
+    : "Too many attempts. Please wait a moment and try again.";
+}
+
+// Turns the backend's error bodies ({ detail }, { message }, { error },
+// { non_field_errors: [] }, { field: ["msg"] }) into one readable sentence.
+function errorMessage(data: unknown, status: number, retryAfter?: number): string {
+  if (status === 429) return rateLimitMessage(data, retryAfter);
+  if (status === 413) return "That file is too large. Uploads must be 10 MB or smaller.";
   if (typeof data === "string" && data.trim() && !data.trim().startsWith("<")) return data;
   if (data && typeof data === "object") {
     const d = data as Json;
@@ -112,11 +104,9 @@ interface RequestOptions {
 }
 
 async function send(path: string, opts: RequestOptions): Promise<Response> {
-  await loadTokens();
   const headers: Record<string, string> = { Accept: "application/json" };
   // For FormData, fetch sets the multipart boundary itself.
   if (opts.body !== undefined) headers["Content-Type"] = "application/json";
-  if (opts.auth !== false && tokens.access) headers.Authorization = `Bearer ${tokens.access}`;
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -136,42 +126,44 @@ async function send(path: string, opts: RequestOptions): Promise<Response> {
 }
 
 export async function request<T = unknown>(path: string, opts: RequestOptions = {}): Promise<T> {
+  const authed = opts.auth !== false;
+  // Refresh tokens rotate, so nothing authenticated goes out mid-refresh.
+  if (authed && refreshing) await refreshing;
   let res = await send(path, opts);
 
-  if (res.status === 401 && opts.auth !== false) {
-    if (await refreshAccessToken()) {
+  if (res.status === 401 && authed) {
+    const result = await refreshSession();
+    if (result === "refreshed") {
       res = await send(path, opts);
-    } else {
-      await clearTokens();
-      onSessionExpired?.();
+      if (res.status === 401) expireSession();
+    } else if (result === "rejected") {
+      expireSession();
     }
+    // "unavailable": offline or rate limited, which says nothing about the
+    // session, so the user stays logged in and just sees this request fail.
   }
 
   const data = await parseBody(res);
-  if (!res.ok) throw new ApiError(errorMessage(data, res.status), res.status, data);
+  if (!res.ok) {
+    const seconds = Number(res.headers.get("Retry-After"));
+    const retryAfter = Number.isFinite(seconds) && seconds > 0 ? seconds : undefined;
+    throw new ApiError(errorMessage(data, res.status, retryAfter), res.status, data, retryAfter);
+  }
   return data as T;
 }
 
-/** Exchanges the refresh token for a new access token. Concurrent callers share one request. */
-export function refreshAccessToken(): Promise<boolean> {
+type RefreshResult = "refreshed" | "rejected" | "unavailable";
+
+/** Gets new session cookies. Concurrent callers share one request. */
+function refreshSession(): Promise<RefreshResult> {
   if (!refreshing) {
-    refreshing = (async () => {
+    refreshing = (async (): Promise<RefreshResult> => {
       try {
-        await loadTokens();
-        // Without a stored refresh token, the server can still read the cookie.
-        const res = await send(endpoints.refresh, {
-          body: tokens.refresh ? { refresh: tokens.refresh } : {},
-          auth: false,
-        });
-        if (!res.ok) return false;
-        const next = extractTokens((await parseBody(res)) as Json);
-        await saveTokens({
-          access: next.access ?? tokens.access,
-          refresh: next.refresh ?? tokens.refresh,
-        });
-        return true;
+        const res = await send(endpoints.refresh, { method: "POST", auth: false });
+        if (res.ok) return "refreshed";
+        return res.status >= 500 || res.status === 429 ? "unavailable" : "rejected";
       } catch {
-        return false;
+        return "unavailable";
       } finally {
         refreshing = null;
       }
@@ -187,37 +179,34 @@ export interface AuthUser {
   username: string;
 }
 
-function decodeJwtUserId(token: string | null): string | null {
-  try {
-    const payload = token?.split(".")[1];
-    if (!payload) return null;
-    const b64 = payload.replace(/-/g, "+").replace(/_/g, "/");
-    const json = JSON.parse(atob(b64.padEnd(b64.length + ((4 - (b64.length % 4)) % 4), "=")));
-    return json.user_id != null ? String(json.user_id) : null;
-  } catch {
-    return null;
-  }
-}
-
-async function startSession(data: Json, fallbackUsername: string): Promise<AuthUser> {
-  const t = extractTokens(data);
-  await saveTokens({ access: t.access ?? null, refresh: t.refresh ?? null });
-  const user: Json = data?.user ?? data?.data?.user ?? {};
-  return {
-    id: user.id != null ? String(user.id) : decodeJwtUserId(t.access ?? null),
-    username: user.username ?? fallbackUsername,
-  };
-}
-
 const deviceName = `SrokLove ${Platform.OS === "ios" ? "iOS" : Platform.OS === "android" ? "Android" : "Web"}`;
 
-/** `login` may be a username or email, as the backend accepts either. */
+/** `loginId` may be a username, email or phone number. */
 export async function login(loginId: string, password: string): Promise<AuthUser> {
+  // A logout still in flight would clear the cookies this login is about to set.
+  await loggingOut;
   const data = await request<Json>(endpoints.login, {
     body: { login: loginId.trim(), password, device_name: deviceName },
     auth: false,
   });
-  return startSession(data, loginId.trim());
+  const user: Json = data?.user ?? {};
+  return {
+    id: user.id != null ? String(user.id) : null,
+    username: user.username ?? loginId.trim(),
+  };
+}
+
+/**
+ * Ends the session on the server, which also clears the cookies. Only for a
+ * logout the user asked for: if the server already ended this session, another
+ * device may hold the account's current one. `prepare` runs first, while the
+ * session is still valid. Never throws.
+ */
+export function logout(prepare: () => Promise<void>): void {
+  loggingOut = prepare()
+    .catch(() => {})
+    .then(() => send(endpoints.logout, { method: "POST", auth: false }))
+    .catch(() => {});
 }
 
 export interface RegisterInput {
@@ -331,12 +320,9 @@ export interface MyProfile {
   photos: RemotePhoto[];
   telegram?: string;
   facebook?: string;
-  // Only filled in when the server sends them.
   bio?: string;
+  // Only filled in when the server sends it.
   location?: string;
-  occupation?: string;
-  education?: string;
-  relationshipGoal?: string;
 }
 
 const text = (v: unknown): string | undefined => (typeof v === "string" && v.trim() ? v : undefined);
@@ -354,11 +340,9 @@ export async function getProfile(): Promise<MyProfile> {
     photos: Array.isArray(d.photos) ? d.photos.map(toPhoto) : [],
     telegram: d.telegram || undefined,
     facebook: d.facebook || undefined,
-    bio: text(d.bio),
+    // An empty bio is a real value: it's how a cleared bio reaches other devices.
+    bio: typeof d.bio === "string" ? d.bio : undefined,
     location: text(d.province) ?? text(d.location),
-    occupation: text(d.occupation),
-    education: text(d.education),
-    relationshipGoal: text(d.relationship_goal),
   };
 }
 
@@ -441,10 +425,15 @@ export interface LocalImage {
 async function imageForm(field: string, image: LocalImage): Promise<FormData> {
   const type = image.mimeType ?? "image/jpeg";
   const name = image.fileName ?? `photo.${type.split("/")[1] ?? "jpg"}`;
+  // Check the size here so the user isn't left waiting for the server's 413.
+  // On web the picker gives a blob:/data: URI and FormData needs the Blob itself.
+  const blob = await fetch(image.uri).then((r) => r.blob()).catch(() => null);
+  if (blob && blob.size > MAX_UPLOAD_BYTES) {
+    throw new ApiError("That photo is too large. Photos must be 10 MB or smaller.", 413);
+  }
   const form = new FormData();
   if (Platform.OS === "web") {
-    // On web the picker gives a blob:/data: URI; FormData needs the Blob itself.
-    const blob = await (await fetch(image.uri)).blob();
+    if (!blob) throw new ApiError("Couldn't read that photo. Please pick it again.", 0);
     form.append(field, blob, name);
   } else {
     form.append(field, { uri: image.uri, name, type } as unknown as Blob);
@@ -463,11 +452,13 @@ export async function uploadPhoto(image: LocalImage): Promise<RemotePhoto> {
   return toPhoto(data);
 }
 
-/** Sets which uploaded photos are on the profile, in display order. */
+/**
+ * Sets the profile's photos; list order is display order. The server
+ * PERMANENTLY DELETES any photo left out, so build `photoIds` from a fresh copy
+ * of the server's list.
+ */
 export async function assignPhotos(photoIds: number[]): Promise<void> {
-  await request(endpoints.assignPhotos, {
-    body: { photos: photoIds.map((id, order) => ({ id, order })) },
-  });
+  await request(endpoints.assignPhotos, { body: { photos: photoIds.map((id) => ({ id })) } });
 }
 
 // --- discover & matches -----------------------------------------------------
@@ -495,7 +486,7 @@ export function toUserProfile(d: Json): UserProfile {
   };
 }
 
-/** People near the user's last reported location (includes people already swiped). */
+/** People near the user's last reported location. */
 export async function discover(): Promise<UserProfile[]> {
   const data = await request<Json[] | Json>(endpoints.discover);
   return Array.isArray(data) ? data.map(toUserProfile) : [];
@@ -526,6 +517,28 @@ export async function getMatches(): Promise<MatchedEntry[]> {
     },
     user: toUserProfile(d),
   }));
+}
+
+/**
+ * Reads a /ws/match/ frame:
+ * { type: "match", data: { match_id, room_id, user: { id, username, avatar } } }.
+ * Returns null for anything else.
+ */
+export function parseMatchEvent(frame: Record<string, unknown>): MatchedEntry | null {
+  if (frame.type !== "match") return null;
+  const d = frame.data as Json | null | undefined;
+  if (d?.match_id == null || d.user?.id == null) return null;
+  const user = toUserProfile(d.user);
+  return {
+    match: {
+      id: String(d.match_id),
+      userId: "me",
+      matchedUserId: user.id,
+      roomId: d.room_id != null ? Number(d.room_id) : undefined,
+      createdAt: new Date().toISOString(),
+    },
+    user,
+  };
 }
 
 // --- chats ------------------------------------------------------------------

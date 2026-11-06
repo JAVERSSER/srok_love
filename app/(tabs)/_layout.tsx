@@ -69,9 +69,7 @@ export default function TabsLayout() {
     if (!loggedIn || !hasLocation || AUTH_DISABLED) return;
     const { syncAll, onMatchEvent } = useAppStore.getState();
     syncAll();
-    const socket = openSocket(sockets.match, () => {
-      onMatchEvent().catch(() => {});
-    });
+    const socket = openSocket(sockets.match, onMatchEvent);
     // Coming back to the app (maybe somewhere else): send the new position
     // and reload who's nearby.
     const appState = AppState.addEventListener("change", (state) => {

@@ -8,6 +8,7 @@ import {
   FlatList,
   KeyboardAvoidingView,
   Platform,
+  Alert,
   NativeSyntheticEvent,
   TextInputKeyPressEventData,
 } from "react-native";
@@ -29,8 +30,16 @@ import { avatarOf } from "@/models";
 const GROUP_GAP_MS = 5 * 60 * 1000;
 // Messages younger than this animate in (i.e. ones that just arrived).
 const FRESH_MS = 2000;
-// Without a socket (HTTPS web build), check for new messages this often.
+// Without a working socket, check for new messages this often.
 const POLL_MS = 5000;
+// The server refuses longer messages.
+const MAX_MESSAGE_LENGTH = 2000;
+
+// What the `error` of a chat socket's { type: "error" } frame means for the user.
+const SOCKET_ERRORS: Record<string, string> = {
+  rate_limited: "You're sending messages too quickly. Wait a moment, then try again.",
+  message_too_long: "Messages can be up to 2,000 characters.",
+};
 
 // Desktop browsers: Enter sends, Shift+Enter adds a line. On phones Enter
 // stays a newline, like other chat apps.
@@ -125,6 +134,7 @@ export default function Chat() {
   const [text, setText] = useState("");
   const [status, setStatus] = useState<SocketStatus>("connecting");
   const [error, setError] = useState<string | null>(null);
+  const [messagesDisabled, setMessagesDisabled] = useState(false);
   const socketRef = useRef<LiveSocket | null>(null);
 
   // Opened straight after a match, the room may not be known yet.
@@ -135,7 +145,8 @@ export default function Chat() {
   // Load the history, then follow new messages over the room's socket.
   useEffect(() => {
     if (roomId == null) return;
-    const { loadMessages, receiveMessage, markRoomRead } = useAppStore.getState();
+    const { loadMessages, receiveMessage, markRoomRead, takePendingMessage, refreshMatches, refreshChats } =
+      useAppStore.getState();
     const markRead = () => markRoomRead(roomId).catch(() => {});
     loadMessages(roomId)
       .then(markRead)
@@ -145,12 +156,37 @@ export default function Chat() {
     const socket = openSocket(
       sockets.chat(roomId),
       (data) => {
+        if (data.type === "error") {
+          // The message wasn't sent, so it goes back in the draft.
+          const rejected = takePendingMessage(roomId);
+          if (rejected) setText((t) => (t ? `${rejected}\n${t}` : rejected));
+          if (data.error === "messages_disabled") setMessagesDisabled(true);
+          else setError(SOCKET_ERRORS[String(data.error)] ?? "Your message couldn't be sent. Please try again.");
+          return;
+        }
+        if (typeof data.message !== "string") return;
         receiveMessage(roomId, data);
         markRead();
       },
       (next) => {
         setStatus(next);
-        if (next === "unavailable" && !poll) {
+        if (next === "ended") {
+          // Unmatched or blocked: this chat is over, so leave it.
+          refreshMatches().catch(() => {});
+          refreshChats().catch(() => {});
+          const notice = "This conversation has ended.";
+          if (Platform.OS === "web") window.alert(notice);
+          else Alert.alert("Chat ended", notice);
+          if (router.canGoBack()) router.back();
+          else router.replace("/(tabs)/matches");
+          return;
+        }
+        if (next === "open") {
+          clearInterval(poll);
+          poll = undefined;
+          // Catch anything sent while the socket was down.
+          loadMessages(roomId).then(markRead).catch(() => {});
+        } else if ((next === "unavailable" || next === "closed") && !poll) {
           poll = setInterval(() => loadMessages(roomId).then(markRead).catch(() => {}), POLL_MS);
         }
       }
@@ -240,7 +276,7 @@ export default function Chat() {
 
   const send = () => {
     const trimmed = text.trim();
-    if (!trimmed || roomId == null) return;
+    if (!trimmed || roomId == null || messagesDisabled) return;
     const { addPendingMessage, dropPendingMessage, receiveMessage } = useAppStore.getState();
     if (status === "unavailable") {
       // No socket (HTTPS web build): send over HTTP and swap in the saved copy.
@@ -281,7 +317,10 @@ export default function Chat() {
     focusInput();
   };
 
-  const canSend = text.trim().length > 0 && roomId != null;
+  const canSend = text.trim().length > 0 && roomId != null && !messagesDisabled;
+  const notice = messagesDisabled
+    ? `${user.name} has turned off messages.`
+    : error ?? (text.length >= MAX_MESSAGE_LENGTH ? SOCKET_ERRORS.message_too_long : null);
   const statusText =
     roomId == null || status === "connecting"
       ? "Connecting…"
@@ -341,15 +380,17 @@ export default function Chat() {
         keyboardVerticalOffset={90}
       >
         <View style={styles.inputBar}>
-          {error ? <Text style={styles.error}>{error}</Text> : null}
+          {notice ? <Text style={styles.error}>{notice}</Text> : null}
           <View style={styles.composer}>
             <TextInput
               ref={inputRef}
               style={styles.input}
               value={text}
               onChangeText={setText}
-              placeholder="Type a message..."
+              placeholder={messagesDisabled ? "Messages are turned off" : "Type a message..."}
               placeholderTextColor={colors.textTertiary}
+              editable={!messagesDisabled}
+              maxLength={MAX_MESSAGE_LENGTH}
               multiline
               onKeyPress={onKeyPress}
             />

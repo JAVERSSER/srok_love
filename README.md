@@ -1,17 +1,25 @@
 # SrokLove 💗
 
 A Cambodia-focused dating app demo built with **React Native + TypeScript + Expo + Expo Router**.
-Accounts and profile photos use the Django backend (`https://api.slanh.site` by default);
-discovery, matches and chat have no backend endpoints yet, so Discover is empty until
-they're added. There is no mock or demo data in the app.
+Everything runs on the Django backend (`https://api.slanh.site` by default). There is no
+mock or demo data in the app.
 
 ## Backend
 
 - Config: `constants/api.ts` (base URL + endpoint paths). Override the server with
-  `EXPO_PUBLIC_API_URL=http://<host>:8000` in a `.env` file.
-- Client: `services/api.ts` — login, token refresh (automatic on 401), photo upload/assign.
-- Web production builds call `/api/*` on their own origin and `vercel.json` proxies it to
-  the VPS, because an HTTPS page can't call a plain-HTTP server directly.
+  `EXPO_PUBLIC_API_URL=https://<host>` in a `.env` file. The backend is HTTPS and WSS only.
+- Client: `services/api.ts`. Auth is in HttpOnly cookies, so every call sends cookies, and a
+  401 gets one automatic refresh before the user is sent to login. One device can be logged
+  in per user, so a login elsewhere ends this session.
+- Sockets: `services/socket.ts`. Close code 4001 goes to login and 4003 leaves the chat;
+  neither reconnects. Native apps send an `Origin` header (`EXPO_PUBLIC_SOCKET_ORIGIN`,
+  default: the API origin), which must be on the backend's allowed list.
+- Web builds call `/api/*` on their own origin and `vercel.json` proxies it to the VPS. Vercel
+  can't proxy sockets, so on slanh.site `api/proxy.js` sets the auth cookies on `.slanh.site` and
+  the browser connects straight to `wss://api.slanh.site`. The backend must allow the socket
+  origin `https://www.slanh.site`. Other web hosts fall back to polling and HTTP sends.
+  The backend needs to read the client IP from `X-Forwarded-For` for its per-IP rate limits.
+- Password reset is hidden (`PASSWORD_RESET_AVAILABLE`) until the backend delivers OTP codes.
 
 ## Push notifications
 

@@ -5,13 +5,26 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { PrimaryButton, GhostButton, TextField } from "@/components/ui";
 import { requestPasswordReset, confirmPasswordReset } from "@/services/api";
+import { PASSWORD_RESET_AVAILABLE } from "@/constants/api";
 import { validateEmail, validatePassword } from "@/services/auth";
 import { colors } from "@/constants/colors";
 import { spacing, font } from "@/constants/spacing";
 
+// The login screen hides the link while reset codes can't be delivered; this
+// covers anyone arriving at the route directly.
+export default function ForgotPasswordRoute() {
+  if (PASSWORD_RESET_AVAILABLE) return <ForgotPassword />;
+  return (
+    <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
+      <ScreenHeader title="Reset Password" />
+      <Text style={[styles.sub, styles.scroll]}>Password reset isn't available yet.</Text>
+    </SafeAreaView>
+  );
+}
+
 // Two steps: enter the account email to get a reset code, then enter the code
 // with a new password.
-export default function ForgotPassword() {
+function ForgotPassword() {
   const router = useRouter();
   const [step, setStep] = useState<"email" | "reset">("email");
   const [email, setEmail] = useState("");

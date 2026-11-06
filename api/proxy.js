@@ -4,6 +4,10 @@
 // first-party. vercel.json rewrites /api/* and /media/* here with the original
 // path in `__path`, and we forward the request (method, headers, body, cookies)
 // and stream the response back.
+//
+// Vercel can't proxy WebSockets, so the browser opens them straight to
+// api.slanh.site. On our own domain we widen the auth cookies to .slanh.site so
+// the browser sends them to that socket too.
 
 const BACKEND = process.env.BACKEND_ORIGIN || "https://api.slanh.site";
 
@@ -11,6 +15,28 @@ const BACKEND = process.env.BACKEND_ORIGIN || "https://api.slanh.site";
 // Node's fetch has already decompressed the body.
 const DROP_REQUEST = ["host", "connection", "content-length", "accept-encoding"];
 const DROP_RESPONSE = ["content-encoding", "content-length", "transfer-encoding", "connection"];
+
+const COOKIE_DOMAIN = "slanh.site";
+
+// Vercel preview URLs can't set cookies for our domain, so they're left alone.
+function isOnCookieDomain(request) {
+  const host = (request.headers.get("x-forwarded-host") || request.headers.get("host") || "").split(":")[0];
+  return host === COOKIE_DOMAIN || host.endsWith(`.${COOKIE_DOMAIN}`);
+}
+
+// Returns the Set-Cookie headers that move one cookie to the shared domain. The
+// first expires any older copy that only belongs to the current host, which
+// would otherwise be sent alongside the new one.
+function shareCookie(setCookie) {
+  const [pair, ...attributes] = setCookie.split(";").map((part) => part.trim());
+  const name = pair.split("=")[0];
+  const kept = attributes.filter((attribute) => !/^domain=/i.test(attribute));
+  const path = kept.find((attribute) => /^path=/i.test(attribute)) || "Path=/";
+  return [
+    `${name}=; Max-Age=0; ${path}; Secure; SameSite=Lax`,
+    [pair, ...kept, `Domain=.${COOKIE_DOMAIN}`].join("; "),
+  ];
+}
 
 async function proxy(request) {
   const url = new URL(request.url);
@@ -38,6 +64,13 @@ async function proxy(request) {
 
   const out = new Headers(res.headers);
   DROP_RESPONSE.forEach((h) => out.delete(h));
+  if (isOnCookieDomain(request)) {
+    out.delete("set-cookie");
+    res.headers
+      .getSetCookie()
+      .flatMap(shareCookie)
+      .forEach((cookie) => out.append("set-cookie", cookie));
+  }
   return new Response(res.body, { status: res.status, statusText: res.statusText, headers: out });
 }
 

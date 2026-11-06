@@ -19,6 +19,7 @@ export default function Discover() {
   const likeUser = useAppStore((s) => s.likeUser);
   const passUser = useAppStore((s) => s.passUser);
   const lastMatch = useAppStore((s) => s.lastMatch);
+  const lastMatchHasRoom = useAppStore((s) => !!s.lastMatch && s.getRoomId(s.lastMatch.id) != null);
   const clearLastMatch = useAppStore((s) => s.clearLastMatch);
   const currentUser = useAppStore((s) => s.currentUser);
   const unreadNotifs = useAppStore((s) => s.notifications.filter((n) => !n.read).length);
@@ -63,7 +64,9 @@ export default function Discover() {
 
   const handleSwipe = (dir: SwipeDir, id: string) => {
     // The card leaves right away; the swipe is sent in the background and a
-    // match pops up the MatchModal through lastMatch.
+    // match pops up the MatchModal through lastMatch. If it fails (e.g. the
+    // swipe limit), the card comes back and the reason shows above the deck.
+    setError(null);
     const sent = dir === "left" ? passUser(id) : likeUser(id);
     sent.catch((e) => setError(e instanceof Error ? e.message : "Couldn't send your swipe."));
     setTick((t) => t + 1);
@@ -85,6 +88,8 @@ export default function Discover() {
           )}
         </Pressable>
       </View>
+
+      {error && queue.length > 0 ? <Text style={styles.error}>{error}</Text> : null}
 
       <View style={styles.deck}>
         {queue.length === 0 ? (
@@ -147,6 +152,7 @@ export default function Discover() {
       <MatchModal
         match={lastMatch}
         mePhoto={avatarOf(currentUser)}
+        canMessage={lastMatchHasRoom}
         onMessage={() => {
           const id = lastMatch?.id;
           clearLastMatch();
@@ -183,6 +189,13 @@ function ActionBtn({
 }
 
 const styles = StyleSheet.create({
+  error: {
+    color: colors.danger,
+    fontSize: font.small,
+    textAlign: "center",
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.sm,
+  },
   container: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: "row",

@@ -50,10 +50,6 @@ export interface UserProfile {
   // The photo gallery shown on cards and the full profile, kept separate from the avatar.
   photos: string[];
   interests: string[];
-  occupation?: string;
-  education?: string;
-  height?: string;
-  relationshipGoal?: string;
   // Social accounts, shown to matches only. Telegram is a username without
   // "@"; Facebook is a username or numeric profile id.
   telegram?: string;

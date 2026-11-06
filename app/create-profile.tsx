@@ -19,12 +19,7 @@ import { spacing, font, radius } from "@/constants/spacing";
 import { PrimaryButton, Input } from "@/components/ui";
 import { InterestTag } from "@/components/InterestTag";
 import { AvatarPicker, pickAvatarImage } from "@/components/AvatarPicker";
-import {
-  provinces,
-  genderOptions,
-  interestOptions,
-  relationshipGoals,
-} from "@/constants/provinces";
+import { provinces, genderOptions, interestOptions } from "@/constants/provinces";
 import { Gender } from "@/models";
 import { ageFromDob, formatDob } from "@/services/api";
 import { dateOfBirthToIso, formatDateOfBirthInput, validateDateOfBirth } from "@/services/auth";
@@ -49,7 +44,6 @@ export default function CreateProfile() {
   const [gender, setGender] = useState<Gender | null>(null);
   const [province, setProvince] = useState("");
   const [bio, setBio] = useState("");
-  const [goal, setGoal] = useState("");
   const [interests, setInterests] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
 
@@ -84,7 +78,6 @@ export default function CreateProfile() {
     !gender && "gender",
     !province && "province",
     !bio.trim() && "bio",
-    !goal && "relationship intention",
   ].filter(Boolean) as string[];
   const valid = missing.length === 0;
 
@@ -97,7 +90,6 @@ export default function CreateProfile() {
       gender,
       location: province,
       bio: bio.trim(),
-      relationshipGoal: goal,
       interests,
     };
     if (AUTH_DISABLED) {
@@ -206,9 +198,6 @@ export default function CreateProfile() {
             maxLength={300}
             multiline
           />
-
-          <Label text="Relationship intention" />
-          <Chips options={relationshipGoals} value={goal} onSelect={setGoal} wrap />
 
           <Label text="Interests" />
           <Interests selected={interests} onToggle={toggleInterest} />

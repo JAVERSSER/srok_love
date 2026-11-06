@@ -10,6 +10,7 @@ import {
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAppStore } from "@/store/appStore";
+import { PASSWORD_RESET_AVAILABLE } from "@/constants/api";
 import { colors } from "@/constants/colors";
 import { spacing, font } from "@/constants/spacing";
 import { PrimaryButton, GhostButton, TextField } from "@/components/ui";
@@ -60,10 +61,10 @@ export default function Login() {
           <Text style={styles.sub}>Log in to keep swiping.</Text>
 
           <TextField
-            label="Username or email"
+            label="Username, email or phone"
             value={username}
             onChangeText={clearError(setUsername)}
-            placeholder="Your username or email"
+            placeholder="Your username, email or phone"
             textContentType="username"
             autoComplete="username"
           />
@@ -79,11 +80,13 @@ export default function Login() {
             returnKeyType="go"
           />
 
-          <GhostButton
-            label="Forgot password?"
-            onPress={() => router.push("/forgot-password")}
-            style={styles.forgot}
-          />
+          {PASSWORD_RESET_AVAILABLE ? (
+            <GhostButton
+              label="Forgot password?"
+              onPress={() => router.push("/forgot-password")}
+              style={styles.forgot}
+            />
+          ) : null}
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
 

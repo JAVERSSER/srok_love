@@ -33,13 +33,6 @@ export const provinceCoords: Record<string, { latitude: number; longitude: numbe
 
 export const genderOptions = ["male", "female"] as const;
 
-export const relationshipGoals = [
-  "Serious relationship",
-  "Something casual",
-  "New friends",
-  "Still figuring it out",
-];
-
 export const interestOptions = [
   "Coffee",
   "Travel",
