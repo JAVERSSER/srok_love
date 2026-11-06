@@ -129,7 +129,7 @@ export default function SignUp() {
             label="Password"
             value={password}
             onChangeText={setPassword}
-            placeholder="At least 8 characters"
+            placeholder="8+ chars, upper, lower, number, symbol"
             secure
             // "oneTimeCode" stops iOS from offering an auto-generated strong
             // password; users pick their own.

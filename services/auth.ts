@@ -69,7 +69,10 @@ export function validateDateOfBirth(dob: string): string | null {
 
 export function validatePassword(password: string): string | null {
   if (password.length < 8) return "Password must be at least 8 characters.";
-  if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password))
-    return "Password must contain letters and numbers.";
+  if (/\s/.test(password)) return "Password can't contain spaces.";
+  if (!/[a-z]/.test(password)) return "Password needs a lowercase letter.";
+  if (!/[A-Z]/.test(password)) return "Password needs an uppercase letter.";
+  if (!/[0-9]/.test(password)) return "Password needs a number.";
+  if (!/[^A-Za-z0-9]/.test(password)) return "Password needs a special character.";
   return null;
 }

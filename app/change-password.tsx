@@ -53,7 +53,7 @@ export default function ChangePassword() {
             label="New password"
             value={next}
             onChangeText={clearError(setNext)}
-            placeholder="At least 8 characters, letters and numbers"
+            placeholder="8+ chars, upper, lower, number, symbol"
             secure
             textContentType="newPassword"
             autoComplete="new-password"

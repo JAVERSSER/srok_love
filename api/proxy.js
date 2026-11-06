@@ -1,11 +1,11 @@
 // Vercel serverless proxy to the Django backend.
 //
-// The site is served over HTTPS and the backend is plain HTTP on an IP, so the
-// browser can't call it directly (mixed content). vercel.json rewrites /api/*
-// and /media/* here with the original path in `__path`, and we forward the
-// request (method, headers, body, cookies) and stream the response back.
+// Web requests stay on our own origin so the backend's SameSite=Lax cookies stay
+// first-party. vercel.json rewrites /api/* and /media/* here with the original
+// path in `__path`, and we forward the request (method, headers, body, cookies)
+// and stream the response back.
 
-const BACKEND = process.env.BACKEND_ORIGIN || "https://139.59.249.224";
+const BACKEND = process.env.BACKEND_ORIGIN || "https://api.slanh.site";
 
 // Hop-by-hop headers, plus ones fetch recomputes or that would break once
 // Node's fetch has already decompressed the body.
