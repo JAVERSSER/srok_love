@@ -145,6 +145,7 @@ interface AppState {
   reportUser: (targetId: string, reason: ReportReason) => void;
 
   markNotificationsRead: () => void;
+  clearNotifications: () => void;
   // A push notification from the backend: adds it to the Notifications screen
   // (once, even if it's reported twice) and refreshes what it's about.
   receivePush: (push: { id: string; title: string; body: string; data: PushData }) => void;
@@ -804,6 +805,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((s) => ({
       notifications: s.notifications.map((n) => ({ ...n, read: true })),
     }));
+    persist(get());
+  },
+
+  clearNotifications: () => {
+    set({ notifications: [] });
     persist(get());
   },
 

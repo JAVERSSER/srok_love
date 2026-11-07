@@ -144,8 +144,9 @@ export default function ProfileDetail() {
     ]);
   };
 
-  // Every basic fact on the profile. Your own preview also lists the empty ones
-  // ("Not added") so you can see what's missing; other people only see filled ones.
+  // Every basic fact on the profile. Your own preview and a match's profile also
+  // list the empty ones ("Not added"); anyone else only sees filled ones.
+  const showEmpty = isPreview || isMatch || hasRoom;
   const hideAge = isPreview && !privacy.showAge;
   const age = user.dateOfBirth ? ageFromDob(user.dateOfBirth) : user.age;
   const basics: { icon: keyof typeof Ionicons.glyphMap; label: string; value?: string }[] = [
@@ -154,7 +155,7 @@ export default function ProfileDetail() {
     { icon: user.gender === "female" ? "female" : "male", label: "Gender", value: user.gender && (user.gender === "female" ? "Woman" : "Man") },
     { icon: "location-outline", label: "Lives in", value: [user.city, user.location].filter(Boolean).join(", ") || undefined },
   ];
-  const shownBasics = basics.filter((b) => b.value || isPreview);
+  const shownBasics = basics.filter((b) => b.value || showEmpty);
 
   // Profile sections. Photos only show in the top photo; tap its sides to move through them.
   const sections: React.ReactNode[] = [
@@ -170,7 +171,7 @@ export default function ProfileDetail() {
         ))}
       </Section>
     ),
-    (user.interests.length > 0 || isPreview) && (
+    (user.interests.length > 0 || showEmpty) && (
       <Section key="interests" title="Interests">
         {user.interests.length ? (
           <View style={styles.interests}>

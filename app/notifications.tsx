@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { View, Text, StyleSheet, FlatList } from "react-native";
+import { Alert, FlatList, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAppStore } from "@/store/appStore";
 import { ScreenHeader } from "@/components/ScreenHeader";
@@ -24,10 +24,23 @@ function timeAgo(iso: string) {
 export default function Notifications() {
   const notifications = useAppStore((s) => s.notifications);
   const markRead = useAppStore((s) => s.markNotificationsRead);
+  const clearNotifications = useAppStore((s) => s.clearNotifications);
 
   useEffect(() => {
     markRead();
   }, [markRead]);
+
+  const confirmClear = () => {
+    // Alert.alert's buttons don't show on web.
+    if (Platform.OS === "web") {
+      if (window.confirm("Clear all notifications?")) clearNotifications();
+      return;
+    }
+    Alert.alert("Clear all notifications?", "This can't be undone.", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Clear", style: "destructive", onPress: clearNotifications },
+    ]);
+  };
 
   if (notifications.length === 0) {
     return (
@@ -40,7 +53,14 @@ export default function Notifications() {
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
-      <ScreenHeader title="Notifications" />
+      <ScreenHeader
+        title="Notifications"
+        right={
+          <Pressable onPress={confirmClear} hitSlop={10} accessibilityRole="button" accessibilityLabel="Clear all notifications">
+            <Text style={styles.clear}>Clear</Text>
+          </Pressable>
+        }
+      />
       <FlatList
         data={notifications}
         keyExtractor={(n) => n.id}
@@ -61,6 +81,7 @@ export default function Notifications() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
+  clear: { fontSize: font.body, color: colors.primary, fontWeight: "600" },
   row: {
     flexDirection: "row",
     alignItems: "center",
