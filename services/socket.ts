@@ -1,6 +1,6 @@
 import { Platform } from "react-native";
 import { SOCKETS_AVAILABLE, SOCKET_ORIGIN } from "@/constants/api";
-import { checkSession, expireSession } from "@/services/api";
+import { checkSession, ensureFreshSession, expireSession } from "@/services/api";
 
 // A WebSocket to the Django Channels backend that reconnects with backoff
 // until closed. Auth rides on the session cookies, which the browser and
@@ -47,8 +47,10 @@ export function openSocket(
   let attempt = 0;
   let retry: ReturnType<typeof setTimeout> | undefined;
 
-  const connect = () => {
+  const connect = async () => {
     onStatus?.("connecting");
+    const sessionValid = await ensureFreshSession();
+    if (!sessionValid || closed) return;
     let opened = false;
     try {
       ws = createSocket(url);

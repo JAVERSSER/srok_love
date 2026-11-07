@@ -13,6 +13,12 @@ const TIMEOUT_MS = 20000;
 /** The server refuses bigger requests with 413. */
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 
+/** The backend's access cookie lasts 15 minutes; renew a minute early. */
+const ACCESS_COOKIE_REFRESH_MS = 14 * 60 * 1000;
+
+/** When the access cookie was last issued. 0: unknown, e.g. after a reload. */
+let accessCookieIssuedAt = 0;
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -160,7 +166,10 @@ function refreshSession(): Promise<RefreshResult> {
     refreshing = (async (): Promise<RefreshResult> => {
       try {
         const res = await send(endpoints.refresh, { method: "POST", auth: false });
-        if (res.ok) return "refreshed";
+        if (res.ok) {
+          accessCookieIssuedAt = Date.now();
+          return "refreshed";
+        }
         return res.status >= 500 || res.status === 429 ? "unavailable" : "rejected";
       } catch {
         return "unavailable";
@@ -170,6 +179,21 @@ function refreshSession(): Promise<RefreshResult> {
     })();
   }
   return refreshing;
+}
+
+/**
+ * Sockets can't refresh a cookie themselves, so call this before connecting.
+ * Renews the access cookie if it may have expired. Returns false, after logging
+ * out, only if the server rejects the session. Never throws.
+ */
+export async function ensureFreshSession(): Promise<boolean> {
+  if (Date.now() - accessCookieIssuedAt < ACCESS_COOKIE_REFRESH_MS) return true;
+  const result = await refreshSession();
+  if (result === "rejected") {
+    expireSession();
+    return false;
+  }
+  return true;
 }
 
 // --- auth -------------------------------------------------------------------
@@ -189,6 +213,7 @@ export async function login(loginId: string, password: string): Promise<AuthUser
     body: { login: loginId.trim(), password, device_name: deviceName },
     auth: false,
   });
+  accessCookieIssuedAt = Date.now();
   const user: Json = data?.user ?? {};
   return {
     id: user.id != null ? String(user.id) : null,

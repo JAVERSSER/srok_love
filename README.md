@@ -14,10 +14,9 @@ mock or demo data in the app.
 - Sockets: `services/socket.ts`. Close code 4001 goes to login and 4003 leaves the chat;
   neither reconnects. Native apps send an `Origin` header (`EXPO_PUBLIC_SOCKET_ORIGIN`,
   default: the API origin), which must be on the backend's allowed list.
-- Web builds call `/api/*` on their own origin and `vercel.json` proxies it to the VPS. Vercel
-  can't proxy sockets, so on slanh.site `api/proxy.js` sets the auth cookies on `.slanh.site` and
-  the browser connects straight to `wss://api.slanh.site`. The backend must allow the socket
-  origin `https://www.slanh.site`. Other web hosts fall back to polling and HTTP sends.
+- `www.slanh.site` calls `https://api.slanh.site` directly with `credentials: "include"`, so the
+  backend must allow that origin for CORS and sockets. Sockets renew the 15-minute access cookie
+  before connecting. Other web hosts use the `vercel.json` or Metro proxy and fall back to polling.
   The backend needs to read the client IP from `X-Forwarded-For` for its per-IP rate limits.
 - Password reset is hidden (`PASSWORD_RESET_AVAILABLE`) until the backend delivers OTP codes.
 

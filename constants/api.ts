@@ -4,11 +4,12 @@ import { Platform } from "react-native";
 // `.env` file (e.g. to point at a local server while developing).
 export const API_ORIGIN = process.env.EXPO_PUBLIC_API_URL ?? "https://api.slanh.site";
 
-// On web we always call our own origin and let a proxy forward /api and
-// /media to the VPS: vercel.json in production, metro.config.js in dev. The
-// backend's auth cookies are SameSite=Lax, so they only work first-party, and
-// the HTTPS production site couldn't call a plain-HTTP server anyway.
-const useProxy = Platform.OS === "web" && !process.env.EXPO_PUBLIC_API_URL;
+// The production site calls the backend directly: the backend allows its origin
+// and api.slanh.site is same-site, so the login cookies also reach the sockets.
+// Other web hosts aren't allowed or same-site, so they call their own origin and
+// a proxy forwards /api and /media: vercel.json for previews, metro.config.js in dev.
+const isProductionSite = Platform.OS === "web" && typeof window !== "undefined" && window.location.hostname === "www.slanh.site";
+const useProxy = Platform.OS === "web" && !process.env.EXPO_PUBLIC_API_URL && !isProductionSite;
 
 export const API_BASE_URL = useProxy ? "" : API_ORIGIN;
 
@@ -49,15 +50,10 @@ export const sockets = {
   match: `${WS_ORIGIN}/ws/match/`,
 } as const;
 
-// Sockets authenticate with the session cookies. On slanh.site, api/proxy.js
-// shares those cookies with the backend's subdomain, so sockets work. Other web
-// hosts (localhost, Vercel previews) can't share them, so chat polls there.
-const sharesCookiesWithBackend =
-  Platform.OS === "web" &&
-  typeof window !== "undefined" &&
-  /(^|\.)slanh\.site$/.test(window.location.hostname);
-
-export const SOCKETS_AVAILABLE = !useProxy || sharesCookiesWithBackend;
+// Sockets authenticate with the session cookies. Behind a proxy those belong to
+// the proxy's origin, so the browser won't send them to the backend's socket,
+// and chat polls instead.
+export const SOCKETS_AVAILABLE = !useProxy;
 
 // The Origin header native apps send on sockets; the backend refuses
 // connections without an allowed one. Override with EXPO_PUBLIC_SOCKET_ORIGIN.
