@@ -187,7 +187,7 @@ export default function Profile() {
             icon="settings-outline"
             color={colors.textSecondary}
             label="Settings"
-            subtitle="Preferences, privacy, password and more"
+            subtitle="Preferences, privacy and more"
             onPress={() => router.push("/settings")}
           />
           <SettingsItem

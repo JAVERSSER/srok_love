@@ -185,6 +185,7 @@ function mergeUsers(existing: UserProfile[], incoming: UserProfile[]): UserProfi
       name: u.name || prev.name,
       username: u.username ?? prev.username,
       age: u.age || prev.age,
+      dateOfBirth: u.dateOfBirth ?? prev.dateOfBirth,
       gender: u.gender ?? prev.gender,
       location: u.location || prev.location,
       bio: u.bio || prev.bio,
@@ -345,6 +346,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({
       account: { username: user.username, userId: user.id, createdAt: new Date().toISOString() },
       loggedIn: true,
+      // Logout keeps this flag, so a previous account's value may still be set.
+      onboarded: false,
       // A fresh account starts with a blank profile and no history.
       currentUser: { ...defaultCurrentUser, dateOfBirth: input.dateOfBirth, age: api.ageFromDob(input.dateOfBirth) },
       myPhotos: [],

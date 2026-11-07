@@ -1,24 +1,20 @@
-import React, { useState } from "react";
+import React from "react";
 import { Text, StyleSheet, ScrollView } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAppStore } from "@/store/appStore";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { SettingsGroup, SettingsItem, confirmLogout } from "@/components/SettingsList";
-import { SupportSheet } from "@/components/SupportSheet";
 import { colors } from "@/constants/colors";
 import { spacing, font } from "@/constants/spacing";
 
 export default function Settings() {
   const router = useRouter();
   const user = useAppStore((s) => s.currentUser);
-  const account = useAppStore((s) => s.account);
   const pref = useAppStore((s) => s.preference);
   const privacy = useAppStore((s) => s.privacy);
-  const blockedCount = useAppStore((s) => s.blocked.length);
   const unread = useAppStore((s) => s.notifications.filter((n) => !n.read).length);
   const logout = useAppStore((s) => s.logout);
-  const [supportOpen, setSupportOpen] = useState(false);
 
   const hiddenCount = Object.values(privacy).filter((v) => !v).length;
 
@@ -45,13 +41,6 @@ export default function Settings() {
             label="My Photos"
             subtitle={`${user.photos.length} photo${user.photos.length === 1 ? "" : "s"}`}
             onPress={() => router.push("/my-photos")}
-          />
-          <SettingsItem
-            icon="key-outline"
-            color={colors.textSecondary}
-            label="Change Password"
-            subtitle={account?.username ? `Signed in as @${account.username}` : undefined}
-            onPress={() => router.push("/change-password")}
           />
         </SettingsGroup>
 
@@ -89,31 +78,12 @@ export default function Settings() {
           />
         </SettingsGroup>
 
-        <SettingsGroup title="Safety & Support">
-          <SettingsItem
-            icon="shield-checkmark-outline"
-            color={colors.danger}
-            label="Safety & Blocked Users"
-            subtitle={blockedCount ? `${blockedCount} blocked` : "Safety tips"}
-            onPress={() => router.push("/safety")}
-          />
-          <SettingsItem
-            icon="help-circle-outline"
-            color={colors.blue}
-            label="Help & Support"
-            subtitle="Contact us on Telegram or Facebook"
-            onPress={() => setSupportOpen(true)}
-          />
-        </SettingsGroup>
-
         <SettingsGroup>
           <SettingsItem icon="log-out-outline" label="Log out" danger onPress={doLogout} />
         </SettingsGroup>
 
         <Text style={styles.version}>SrokLove • Demo v1.0</Text>
       </ScrollView>
-
-      <SupportSheet visible={supportOpen} onClose={() => setSupportOpen(false)} />
     </SafeAreaView>
   );
 }
